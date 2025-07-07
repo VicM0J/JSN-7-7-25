@@ -23,7 +23,7 @@ interface Reposition {
   fechaSolicitud: string;
   modeloPrenda: string;
   currentArea: string;
-  status: 'pendiente' | 'aprobado' | 'rechazado' | 'en_proceso' | 'completado';
+  status: 'pendiente' | 'aprobado' | 'rechazado' | 'en_proceso' | 'completado' | 'eliminado';
   urgencia: 'urgente' | 'intermedio' | 'poco_urgente';
   createdAt: string;
 }
@@ -452,7 +452,7 @@ export function RepositionList({ userArea }: { userArea: string }) {
       });
 
       if (notes !== undefined) { // Usuario no canceló
-        transferMutation.mutate({ repositionId, toArea, notes, consumoTela });
+        transferMutation.mutate({ repositionId, toArea, notes, consumoTela: consumoTela === null ? undefined : consumoTela });
       }
     }
   };
@@ -767,7 +767,7 @@ export function RepositionList({ userArea }: { userArea: string }) {
 
                     {reposition.currentArea === userArea && (
                       <>
-                        {reposition.status === 'aprobado' && reposition.status !== 'eliminado' && (
+                        {reposition.status === 'aprobado' && (
                           <>
                             <Button
                               size="sm"
@@ -784,15 +784,41 @@ export function RepositionList({ userArea }: { userArea: string }) {
                                 size="sm"
                                 variant="outline"
                                 className="text-green-600 hover:bg-green-50 mb-2"
-                                onClick={() => setManualTimes(prev => ({
-                                  ...prev,
-                                  [reposition.id]: prev[reposition.id] || { startTime: '', endTime: '', date: '' }
-                                }))}
+                                onClick={async () => {
+                                  // Verificar si ya existe un tiempo registrado para esta área
+                                  try {
+                                    const response = await fetch(`/api/repositions/${reposition.id}/timer`);
+                                    const existingTimer = await response.json();
+
+                                    if (existingTimer && existingTimer.manualStartTime && existingTimer.manualEndTime) {
+                                      Swal.fire({
+                                        title: 'Tiempo ya registrado',
+                                        html: `Ya existe un tiempo registrado para esta área:<br/>
+                                               <strong>Fecha:</strong> ${existingTimer.manualDate}<br/>
+                                               <strong>Inicio:</strong> ${existingTimer.manualStartTime}<br/>
+                                               <strong>Fin:</strong> ${existingTimer.manualEndTime}<br/>
+                                               <strong>Duración:</strong> ${Math.floor(existingTimer.elapsedMinutes / 60)}h ${Math.round(existingTimer.elapsedMinutes % 60)}m`,
+                                        icon: 'info',
+                                        confirmButtonColor: '#8B5CF6'
+                                      });
+                                      return;
+                                    }
+                                  } catch (error) {
+                                    console.log('No existing timer found, proceeding with registration');
+                                  }
+
+                                  const existing = manualTimes[reposition.id];
+                                  if (existing) {
+                                    setManualTimes(prev => ({ ...prev, [reposition.id]: existing }));
+                                  } else {
+                                    setManualTimes(prev => ({ ...prev, [reposition.id]: { startTime: '', endTime: '', date: new Date().toISOString().split('T')[0] } }));
+                                  }
+                                }}
                               >
                                 <Clock className="w-4 h-4 mr-2" />
-                                Registrar Tiempo Manual
+                                Registrar Tiempo
                               </Button>
-                              
+
                               {manualTimes[reposition.id] && (
                                 <div className="space-y-2 mt-2">
                                   <div className="flex gap-2">

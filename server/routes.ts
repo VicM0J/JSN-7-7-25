@@ -285,6 +285,55 @@ function registerAdminRoutes(app: Express) {
     }
   });
 
+  router.put("/users/:id", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { name, username, area, newPassword } = req.body;
+      
+      console.log('Update user request:', { userId, name, username, area, hasPassword: !!newPassword });
+      
+      if (!userId || !name || !username || !area) {
+        console.log('Missing required fields');
+        return res.status(400).json({ message: "Faltan campos requeridos" });
+      }
+
+      if (isNaN(userId)) {
+        console.log('Invalid user ID');
+        return res.status(400).json({ message: "ID de usuario inválido" });
+      }
+
+      // Verificar si el usuario existe
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        console.log('User not found');
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      // Verificar si el username ya existe (excepto para el usuario actual)
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser && existingUser.id !== userId) {
+        console.log('Username already exists');
+        return res.status(400).json({ message: "El nombre de usuario ya está en uso" });
+      }
+
+      const updateData: any = { name, username, area };
+      
+      // Si se proporciona nueva contraseña, hashearla
+      if (newPassword && newPassword.trim() !== "") {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        updateData.password = hashedPassword;
+        console.log('Password will be updated');
+      }
+
+      await storage.updateUser(userId, updateData);
+      console.log('User updated successfully');
+      res.json({ message: "Usuario actualizado correctamente" });
+    } catch (error) {
+      console.error('Update user error:', error);
+      res.status(500).json({ message: "Error al actualizar el usuario", error: error.message });
+    }
+  });
+
   app.use("/api/admin", router);
 }
 

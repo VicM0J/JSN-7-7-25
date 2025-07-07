@@ -13,7 +13,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Settings, Users, RotateCcw, Shield, TrendingUp, Package } from "lucide-react";
-import { type User, type Order } from "@shared/schema";
+import { type Order } from "@shared/schema";
+
+// Define User type locally with 'active' property if not present in @shared/schema
+type User = {
+  id: number;
+  username: string;
+  name: string;
+  area: "patronaje" | "corte" | "bordado" | "ensamble" | "plancha" | "calidad" | "operaciones" | "admin" | "almacen" | "diseño";
+  createdAt: Date;
+  password: string;
+  active: boolean; 
+};
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -84,15 +95,28 @@ export default function AdminPage() {
 
   const updateUserMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("PUT", `/api/admin/users/${data.id}`, data);
+      const { id, ...updateData } = data;
+      const res = await apiRequest("PUT", `/api/admin/users/${id}`, updateData);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Error al actualizar usuario");
+      }
       return res.json();
     },
     onSuccess: () => {
       toast({ title: "Usuario actualizado correctamente" });
       setShowEditModal(false);
+      setEditUser(null);
+      setEditForm({ name: "", username: "", area: "", newPassword: "" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     },
-    onError: err => toast({ title: "Error al actualizar", description: err.message, variant: "destructive" })
+    onError: (error: Error) => {
+      toast({ 
+        title: "Error al actualizar usuario", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    }
   });
 
   const deleteUserMutation = useMutation({
@@ -120,9 +144,29 @@ export default function AdminPage() {
 
   const handleSaveEdit = () => {
     if (!editUser) return;
-    const payload: any = { id: editUser.id, name: editForm.name, username: editForm.username, area: editForm.area };
-    if (editForm.newPassword) payload.newPassword = editForm.newPassword;
-    updateUserMutation.mutate(payload);
+    
+    // Validar campos requeridos
+    if (!editForm.name.trim() || !editForm.username.trim() || !editForm.area) {
+      toast({
+        title: "Error de validación",
+        description: "Todos los campos son requeridos",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const payload: any = { 
+      name: editForm.name.trim(), 
+      username: editForm.username.trim(), 
+      area: editForm.area 
+    };
+    
+    if (editForm.newPassword && editForm.newPassword.trim()) {
+      payload.newPassword = editForm.newPassword.trim();
+    }
+    
+    console.log('Sending update user payload:', { id: editUser.id, ...payload });
+    updateUserMutation.mutate({ id: editUser.id, ...payload });
   };
 
   const getAreaDisplayName = (area: string) => {

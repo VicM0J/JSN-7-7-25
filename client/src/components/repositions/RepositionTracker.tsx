@@ -20,6 +20,7 @@ interface TrackingStep {
   notes?: string;
   timeSpent?: string;
   timeInMinutes?: number;
+  date?: string;
 }
 
 interface TrackingData {
@@ -236,7 +237,13 @@ export function RepositionTracker({ repositionId, onClose }: RepositionTrackerPr
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-medium">{getAreaDisplayName(step.area)}</h4>
-                            {step.timestamp && (
+                            {step.date && (
+                              <p className="text-sm text-gray-600 mt-1">
+                                <Clock className="w-4 h-4 inline mr-1" />
+                                Fecha: {new Date(step.date).toLocaleDateString('es-ES')}
+                              </p>
+                            )}
+                            {step.timestamp && !step.date && (
                               <p className="text-sm text-gray-600 mt-1">
                                 <Clock className="w-4 h-4 inline mr-1" />
                                 {formatDate(step.timestamp)}

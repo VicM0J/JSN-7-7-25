@@ -167,6 +167,7 @@ export interface IStorage {
   setManualRepositionTime(repositionId: number, area: Area, userId: number, startTime: string, endTime: string, date: string): Promise<SharedRepositionTimer>;
   getRepositionTimer(repositionId: number, area: Area): Promise<SharedRepositionTimer | null>;
 
+   updateUser(userId: number, updateData: any): Promise<void>;
 }
 
 export interface LocalRepositionTimer {
@@ -522,13 +523,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserNotifications(userId: number): Promise<Notification[]> {
-    const notifications = await db.select().from(notifications)
+    const userNotifications = await db.select().from(notifications)
       .where(eq(notifications.userId, userId))
       .orderBy(desc(notifications.createdAt));
 
-      console.log(`getUserNotifications: Found ${notifications.length} notifications for user ${userId}`);
+    console.log(`getUserNotifications: Found ${userNotifications.length} notifications for user ${userId}`);
 
-    return notifications;
+    return userNotifications;
   }
 
   async markNotificationRead(notificationId: number): Promise<void> {
@@ -897,6 +898,7 @@ export class DatabaseStorage implements IStorage {
         action: 'completed',
         description: `Reposición finalizada${notes ? `: ${notes}` : ''}`,
         userId,
+```text
       });
 
     // Crear notificación para el solicitante
@@ -1013,76 +1015,135 @@ async getRepositionTracking(repositionId: number): Promise<any> {
 
     console.log('Timers found:', timers.length);
 
-    // Definir las áreas en orden
-    const areas = ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad'];
-    const currentAreaIndex = areas.indexOf(reposition.currentArea);
+    // Solo mostrar áreas que tienen tiempos registrados o el área actual
+    const areasWithTimers = timers.map(t => t.area);
+    const allRelevantAreas = [...new Set([...areasWithTimers, reposition.currentArea])];
 
-    // Crear pasos del proceso
-    const steps = areas.map((area, index) => {
+    // Ordenar las áreas según el flujo estándar
+    const areaOrder = ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad'];
+    const sortedAreas = allRelevantAreas.sort((a, b) => {
+      const indexA = areaOrder.indexOf(a);
+      const indexB = areaOrder.indexOf(b);
+      return indexA - indexB;
+    });
+
+    console.log('Relevant areas for this reposition:', sortedAreas);
+
+    // Crear pasos del proceso solo para áreas relevantes
+    const steps = sortedAreas.map((area, index) => {
       const areaTimer = timers.find(t => t.area === area);
       let status: 'completed' | 'current' | 'pending' = 'pending';
 
-      if (index < currentAreaIndex || reposition.status === 'completado') {
+      // Determinar status basado en si hay timer registrado y área actual
+      if (areaTimer && areaTimer.manualStartTime && areaTimer.manualEndTime) {
         status = 'completed';
-      } else if (index === currentAreaIndex && reposition.status !== 'completado') {
+      } else if (area === reposition.currentArea && reposition.status !== 'completado') {
         status = 'current';
+      } else if (reposition.status === 'completado') {
+        status = 'completed';
       }
 
       let timeSpent = undefined;
       let timeInMinutes = 0;
 
+      // Solo calcular si tenemos tanto tiempo de inicio como de fin
       if (areaTimer && areaTimer.manualStartTime && areaTimer.manualEndTime) {
-        const startTime = new Date(areaTimer.manualStartTime);
-        const endTime = new Date(areaTimer.manualEndTime);
-        timeInMinutes = Math.abs(endTime.getTime() - startTime.getTime()) / (1000 * 60);
-        const hours = Math.floor(timeInMinutes / 60);
-        const minutes = Math.round(timeInMinutes % 60);
-        timeSpent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        // Usar elapsedMinutes del timer si está disponible y es válido
+        if (areaTimer.elapsedMinutes && !isNaN(areaTimer.elapsedMinutes) && areaTimer.elapsedMinutes > 0) {
+          timeInMinutes = areaTimer.elapsedMinutes;
+        } else {
+          // Calcular manualmente
+          const [startHour, startMinute] = areaTimer.manualStartTime.split(':').map(Number);
+          const [endHour, endMinute] = areaTimer.manualEndTime.split(':').map(Number);
+
+          // Validar que los números son válidos
+          if (!isNaN(startHour) && !isNaN(startMinute) && !isNaN(endHour) && !isNaN(endMinute)) {
+            const startTotalMinutes = startHour * 60 + startMinute;
+            const endTotalMinutes = endHour * 60 + endMinute;
+
+            timeInMinutes = endTotalMinutes - startTotalMinutes;
+            if (timeInMinutes < 0) {
+              timeInMinutes += 24 * 60; // Trabajo cruzó medianoche
+            }
+          }
+        }
+
+        // Solo asignar timeSpent si tenemos un valor válido
+        if (!isNaN(timeInMinutes) && timeInMinutes > 0) {
+          const hours = Math.floor(timeInMinutes / 60);
+          const minutes = Math.round(timeInMinutes % 60);
+          timeSpent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        }
       }
 
       // Buscar el evento de historia más reciente para esta área
-      const areaHistory = history.find(h => h.toArea === area || (area === 'patronaje' && h.action === 'created'));
+      const areaHistory = history.find(h => 
+        h.toArea === area || 
+        (area === 'patronaje' && h.action === 'created') ||
+        h.action === 'manual_time_set' && h.description?.includes(area)
+      );
 
       return {
         id: index + 1,
         area,
         status,
-        timestamp: areaHistory?.timestamp,
+        timestamp: areaHistory?.timestamp || areaTimer?.createdAt,
         user: areaHistory?.userName,
         timeSpent,
-        timeInMinutes
+        timeInMinutes,
+        date: areaTimer?.manualDate
       };
     });
 
-    // Calcular tiempos por área - inicializar con objeto vacío
+    // Calcular tiempos por área - solo para áreas con tiempos registrados
     const areaTimes: Record<string, number> = {};
 
-    // Asegurar que todas las áreas tengan al menos 0 minutos
-    areas.forEach(area => {
-      areaTimes[area] = 0;
-    });
-
-    // Llenar con los tiempos reales si existen
     timers.forEach(timer => {
+      let elapsedMinutes = 0;
+
+      // Solo calcular si tenemos tanto tiempo de inicio como de fin
       if (timer.manualStartTime && timer.manualEndTime) {
-        const startTime = new Date(timer.manualStartTime);
-        const endTime = new Date(timer.manualEndTime);
-        const timeInMinutes = Math.abs(endTime.getTime() - startTime.getTime()) / (1000 * 60);
-        areaTimes[timer.area] = timeInMinutes;
+        // Usar elapsedMinutes del timer si está disponible y es válido
+        if (timer.elapsedMinutes && !isNaN(timer.elapsedMinutes) && timer.elapsedMinutes > 0) {
+          elapsedMinutes = timer.elapsedMinutes;
+        } else {
+          // Calcular manualmente
+          const [startHour, startMinute] = timer.manualStartTime.split(':').map(Number);
+          const [endHour, endMinute] = timer.manualEndTime.split(':').map(Number);
+
+          // Validar que los números son válidos
+          if (!isNaN(startHour) && !isNaN(startMinute) && !isNaN(endHour) && !isNaN(endMinute)) {
+            const startTotalMinutes = startHour * 60 + startMinute;
+            const endTotalMinutes = endHour * 60 + endMinute;
+
+            elapsedMinutes = endTotalMinutes - startTotalMinutes;
+            if (elapsedMinutes < 0) {
+              elapsedMinutes += 24 * 60; // Trabajo cruzó medianoche
+            }
+          }
+        }
+
+        // Solo asignar si tenemos un valor válido
+        if (!isNaN(elapsedMinutes) && elapsedMinutes > 0) {
+          areaTimes[timer.area] = elapsedMinutes;
+        }
       }
     });
 
     console.log('Area times calculated:', areaTimes);
 
     // Calcular tiempo total
-    const totalMinutes = Object.values(areaTimes).reduce((sum, minutes) => sum + minutes, 0);
+    const validTimes = Object.values(areaTimes).filter(minutes => !isNaN(minutes) && minutes > 0);
+    const totalMinutes = validTimes.reduce((sum, minutes) => sum + minutes, 0);
     const totalHours = Math.floor(totalMinutes / 60);
     const remainingMinutes = Math.round(totalMinutes % 60);
-    const totalTimeFormatted = totalHours > 0 ? `${totalHours}h ${remainingMinutes}m` : `${remainingMinutes}m`;
+    const totalTimeFormatted = totalMinutes > 0 ? 
+      (totalHours > 0 ? `${totalHours}h ${remainingMinutes}m` : `${remainingMinutes}m`) : 
+      "0m";
 
-    // Calcular progreso
+    // Calcular progreso basado en áreas completadas vs áreas relevantes
     const completedSteps = steps.filter(s => s.status === 'completed').length;
-    const progress = Math.round((completedSteps / areas.length) * 100);
+    const progress = sortedAreas.length > 0 ? Math.round((completedSteps / sortedAreas.length) * 100) : 0;
 
     const result = {
       reposition: {
@@ -1425,6 +1486,18 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
     }
 
+    // Verificar si ya existe un timer para esta reposición y área
+    const existingTimer = await db.select().from(repositionTimers)
+      .where(and(
+        eq(repositionTimers.repositionId, repositionId),
+        eq(repositionTimers.area, area)
+      )).limit(1);
+
+    if (existingTimer.length > 0) {
+      // No permitir cambios si ya existe un tiempo registrado
+      throw new Error('Ya existe un tiempo registrado para esta área. No se puede modificar.');
+    }
+
     // Calcular minutos transcurridos
     const [startHour, startMinute] = startTime.split(':').map(Number);
     const [endHour, endMinute] = endTime.split(':').map(Number);
@@ -1437,44 +1510,42 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       elapsedMinutes += 24 * 60; // Asume que el trabajo cruzó la medianoche
     }
 
-    // Verificar si ya existe un timer para esta reposición y área
-    const existingTimer = await db.select().from(repositionTimers)
-      .where(and(
-        eq(repositionTimers.repositionId, repositionId),
-        eq(repositionTimers.area, area)
-      )).limit(1);
-
-    if (existingTimer.length > 0) {
-      // Actualizar timer existente
-      const [updatedTimer] = await db.update(repositionTimers)
-        .set({
-          manualStartTime: startTime,
-          manualEndTime: endTime,
-          manualDate: date,
-          elapsedMinutes,
-          isRunning: false,
-        })
-        .where(eq(repositionTimers.id, existingTimer[0].id))
-        .returning();
-
-      return updatedTimer;
-    } else {
-      // Crear nuevo timer
-      const [timer] = await db.insert(repositionTimers)
-        .values({
-          repositionId,
-          area,
-          userId,
-          manualStartTime: startTime,
-          manualEndTime: endTime,
-          manualDate: date,
-          elapsedMinutes,
-          isRunning: false,
-        })
-        .returning();
-
-      return timer;
+    // Asegurar que elapsedMinutes es un número válido
+    if (isNaN(elapsedMinutes) || elapsedMinutes < 0) {
+      elapsedMinutes = 0;
     }
+
+    console.log(`Manual time calculation: ${startTime} to ${endTime} = ${elapsedMinutes} minutes`);
+
+    // Crear nuevo timer
+    const [timer] = await db.insert(repositionTimers)
+      .values({
+        repositionId,
+        area,
+        userId,
+        manualStartTime: startTime,
+        manualEndTime: endTime,
+        manualDate: date,
+        elapsedMinutes: Math.round(elapsedMinutes), // Redondear para evitar decimales problemáticos
+        isRunning: false,
+      })
+      .returning();
+
+    console.log('Timer created with elapsed minutes:', timer.elapsedMinutes);
+
+    // Registrar en historial con tiempo calculado
+    const hours = Math.floor(elapsedMinutes / 60);
+    const minutes = Math.round(elapsedMinutes % 60);
+    const timeFormatted = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+    await db.insert(repositionHistory).values({
+      repositionId,
+      action: 'manual_time_set',
+      description: `Tiempo registrado manualmente en área ${area}: ${startTime} - ${endTime} (${date}) - Duración: ${timeFormatted}`,
+      userId
+    });
+
+    return timer;
   }
 
   async getRepositionTimer(repositionId: number, area: Area): Promise<SharedRepositionTimer | null> {
@@ -1795,6 +1866,38 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       volverHacer: reposition.volverHacer,
       materialesImplicados: reposition.materialesImplicados
     };
+  }
+
+  async updateUser(userId: number, updateData: any): Promise<void> {
+    try {
+      // Verificar que el usuario existe
+      const existingUser = await this.getUser(userId);
+      if (!existingUser) {
+        throw new Error('Usuario no encontrado');
+      }
+
+      // Preparar datos para actualización
+      const updateFields: any = {
+        name: updateData.name,
+        username: updateData.username,
+        area: updateData.area,
+        updatedAt: new Date()
+      };
+
+      // Solo incluir password si se proporciona
+      if (updateData.password) {
+        updateFields.password = updateData.password;
+      }
+
+      await db.update(users)
+        .set(updateFields)
+        .where(eq(users.id, userId));
+
+      console.log(`User ${userId} updated successfully`);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
   }
 }
 
