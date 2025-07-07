@@ -404,8 +404,8 @@ export function RepositionList({ userArea }: { userArea: string }) {
     const { value: toArea } = await Swal.fire({
       title: 'Transferir a Área',
       input: 'select',
-      inputOptions: areas.reduce((acc, area) => {
-        acc[area] = area.charAt(0).toUpperCase() + area.slice(1);
+      inputOptions: getRepositionNextAreas(userArea).reduce((acc, area) => {
+        acc[area] = getAreaDisplayName(area);
         return acc;
       }, {} as Record<string, string>),
       inputPlaceholder: 'Selecciona un área',
@@ -546,6 +546,31 @@ export function RepositionList({ userArea }: { userArea: string }) {
 
     return matchesSearch && matchesAccident;
   });
+
+  const getRepositionNextAreas = (currentArea: string) => {
+    // Todas las áreas disponibles para transferencia
+    const allAreas = ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'operaciones', 'envios', 'diseño', 'almacen'];
+
+    // Filtrar el área actual para que no aparezca en las opciones
+    return allAreas.filter(area => area !== currentArea);
+  };
+
+  const getAreaDisplayName = (area: string) => {
+    const names: Record<string, string> = {
+      'patronaje': 'Patronaje',
+      'corte': 'Corte',
+      'bordado': 'Bordado',
+      'ensamble': 'Ensamble',
+      'plancha': 'Plancha/Empaque',
+      'calidad': 'Calidad',
+      'operaciones': 'Operaciones',
+      'envios': 'Envíos',
+      'diseño': 'Diseño',
+      'almacen': 'Almacén',
+      'admin': 'Administración'
+    };
+    return names[area] || area.charAt(0).toUpperCase() + area.slice(1);
+  };
 
   if (isLoading) {
     return <div className="text-center py-8">Cargando solicitudes...</div>;

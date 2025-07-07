@@ -11,9 +11,23 @@ declare global {
 }
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Log all requests for debugging
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/orders') && req.method === 'POST') {
+    console.log('=== REQUEST MIDDLEWARE DEBUG ===');
+    console.log('Path:', req.path);
+    console.log('Content-Type:', req.get('content-type'));
+    console.log('Body keys:', Object.keys(req.body));
+    console.log('Body:', req.body);
+    console.log('=== END MIDDLEWARE DEBUG ===');
+  }
+  next();
+});
+
 app.use(camelCaseResponseMiddleware);
-app.use(express.urlencoded({ extended: false }));
 
 // Middleware de logging
 app.use((req, res, next) => {

@@ -168,6 +168,15 @@ export interface IStorage {
   getRepositionTimer(repositionId: number, area: Area): Promise<SharedRepositionTimer | null>;
 
    updateUser(userId: number, updateData: any): Promise<void>;
+
+  saveOrderDocument(docData: {
+    orderId: number;
+    filename: string;
+    originalName: string;
+    size: number;
+    path: string;
+    uploadedBy: number;
+  }): Promise<any>;
 }
 
 export interface LocalRepositionTimer {
@@ -898,7 +907,6 @@ export class DatabaseStorage implements IStorage {
         action: 'completed',
         description: `Reposición finalizada${notes ? `: ${notes}` : ''}`,
         userId,
-```text
       });
 
     // Crear notificación para el solicitante
@@ -1693,6 +1701,28 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
         size: documentData.size,
         path: documentData.path,
         repositionId: documentData.repositionId,
+        uploadedBy: documentData.uploadedBy,
+      })
+      .returning();
+
+    return document;
+  }
+
+  async saveOrderDocument(documentData: {
+    orderId: number;
+    filename: string;
+    originalName: string;
+    size: number;
+    path: string;
+    uploadedBy: number;
+  }): Promise<any> {
+    const [document] = await db.insert(documents)
+      .values({
+        filename: documentData.filename,
+        originalName: documentData.originalName,
+        size: documentData.size,
+        path: documentData.path,
+        orderId: documentData.orderId,
         uploadedBy: documentData.uploadedBy,
       })
       .returning();

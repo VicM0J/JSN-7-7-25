@@ -106,13 +106,17 @@ export function TransferModal({ open, onClose, orderId }: TransferModalProps) {
     if (!user) return [];
     
     const areaFlow: Record<Area, Area[]> = {
+      patronaje: ['corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
       corte: ['bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
       bordado: ['ensamble', 'plancha', 'calidad', 'envios'],
       ensamble: ['plancha', 'calidad', 'envios'],
       plancha: ['calidad', 'envios'],
       calidad: ['envios'],
+      operaciones: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
       envios: [],
-      admin: ['bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
+      almacen: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
+      admin: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
+      diseño: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
     };
     
     return areaFlow[user.area] || [];
@@ -120,14 +124,17 @@ export function TransferModal({ open, onClose, orderId }: TransferModalProps) {
 
   const getAreaDisplayName = (area: Area) => {
     const names: Record<Area, string> = {
+      patronaje: 'Patronaje',
       corte: 'Corte',
       bordado: 'Bordado',
       ensamble: 'Ensamble',
       plancha: 'Plancha/Empaque',
       calidad: 'Calidad',
+      operaciones: 'Operaciones',
       envios: 'Envíos',
       almacen: 'Almacén',
-      admin: 'Admin'
+      admin: 'Admin',
+      diseño: 'Diseño'
     };
     return names[area] || area;
   };

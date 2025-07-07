@@ -8,12 +8,27 @@ BEGIN
         );
     ELSE
         BEGIN
+            ALTER TYPE area ADD VALUE 'patronaje';
+        EXCEPTION
+            WHEN duplicate_object THEN NULL;
+        END;
+        BEGIN
+            ALTER TYPE area ADD VALUE 'operaciones';
+        EXCEPTION
+            WHEN duplicate_object THEN NULL;
+        END;
+        BEGIN
             ALTER TYPE area ADD VALUE 'envios';
         EXCEPTION
             WHEN duplicate_object THEN NULL;
         END;
         BEGIN
             ALTER TYPE area ADD VALUE 'almacen';
+        EXCEPTION
+            WHEN duplicate_object THEN NULL;
+        END;
+        BEGIN
+            ALTER TYPE area ADD VALUE 'diseño';
         EXCEPTION
             WHEN duplicate_object THEN NULL;
         END;

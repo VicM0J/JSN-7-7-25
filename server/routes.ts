@@ -9,9 +9,9 @@ import { z } from "zod";
 import bcrypt from "bcrypt";
 import { eq, desc, and, or, ne, isNotNull, isNull, count } from 'drizzle-orm';
 import { authenticateToken } from './auth';
-import { upload, handleMulterError } from './upload';
 import path from 'path';
 import fs from 'fs';
+import { upload, handleMulterError } from './upload';
 
 
 export function registerRoutes(app: Express): Server {
@@ -35,7 +35,7 @@ export function registerRoutes(app: Express): Server {
 function registerOrderRoutes(app: Express) {
   const router = Router();
 
-  router.post("/", async (req, res) => {
+  router.post("/", upload.array('documents', 5), handleMulterError, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
 
     try {
@@ -44,12 +44,98 @@ function registerOrderRoutes(app: Express) {
         return res.status(403).json({ message: "Área restringida" });
       }
 
-      const validatedData = insertOrderSchema.parse(req.body);
+      console.log('=== CREATE ORDER DEBUG ===');
+      console.log('Content-Type:', req.get('Content-Type'));
+      console.log('Request body keys:', Object.keys(req.body));
+      console.log('Request body:', req.body);
+      console.log('Request files:', req.files);
+      
+      // Check if we're dealing with multipart data
+      if (req.get('Content-Type')?.includes('multipart/form-data')) {
+        console.log('Multipart form data detected');
+        console.log('Form fields:', req.body);
+      }
+      
+      // Log each field individually to debug
+      console.log('Individual fields:', {
+        folio: req.body.folio,
+        clienteHotel: req.body.clienteHotel,
+        noSolicitud: req.body.noSolicitud,
+        noHoja: req.body.noHoja,
+        modelo: req.body.modelo,
+        tipoPrenda: req.body.tipoPrenda,
+        color: req.body.color,
+        tela: req.body.tela,
+        totalPiezas: req.body.totalPiezas
+      });
+      console.log('=== END DEBUG ===');
+
+      // Extract and validate fields from request body
+      const requiredFields = ['folio', 'clienteHotel', 'noSolicitud', 'modelo', 'tipoPrenda', 'color', 'tela', 'totalPiezas'];
+      const missingFields = requiredFields.filter(field => {
+        const value = req.body[field];
+        return !value || String(value).trim() === '';
+      });
+
+      if (missingFields.length > 0) {
+        console.log('Missing required fields:', missingFields);
+        return res.status(400).json({ 
+          message: `Faltan campos requeridos: ${missingFields.join(', ')}`,
+          missingFields 
+        });
+      }
+
+      // Validate totalPiezas is a valid number
+      const totalPiezasValue = parseInt(String(req.body.totalPiezas));
+      if (isNaN(totalPiezasValue) || totalPiezasValue <= 0) {
+        return res.status(400).json({ 
+          message: "El total de piezas debe ser un número mayor a 0" 
+        });
+      }
+
+      // Parse the form data - ensure all values are properly converted to strings
+      const orderData = {
+        folio: String(req.body.folio).trim(),
+        clienteHotel: String(req.body.clienteHotel).trim(),
+        noSolicitud: String(req.body.noSolicitud).trim(),
+        noHoja: req.body.noHoja ? String(req.body.noHoja).trim() : null,
+        modelo: String(req.body.modelo).trim(),
+        tipoPrenda: String(req.body.tipoPrenda).trim(),
+        color: String(req.body.color).trim(),
+        tela: String(req.body.tela).trim(),
+        totalPiezas: totalPiezasValue,
+        currentArea: 'corte' as const,
+        status: 'active' as const
+      };
+
+      console.log('Parsed order data:', orderData);
+
+      const validatedData = insertOrderSchema.parse(orderData);
       const order = await storage.createOrder(validatedData, user.id);
+
+      // Save documents if any
+      const files = req.files as Express.Multer.File[];
+      if (files && files.length > 0) {
+        for (const file of files) {
+          await storage.saveOrderDocument({
+            orderId: order.id,
+            filename: file.filename,
+            originalName: file.originalname,
+            size: file.size,
+            path: file.path,
+            uploadedBy: user.id
+          });
+        }
+      }
+
       res.status(201).json(order);
     } catch (error) {
       console.error('Create order error:', error);
-      res.status(400).json({ message: "Datos de orden incorrectos" });
+      if (error instanceof Error) {
+        res.status(400).json({ message: error.message });
+      } else {
+        res.status(400).json({ message: "Datos de orden incorrectos" });
+      }
     }
   });
 
@@ -289,9 +375,9 @@ function registerAdminRoutes(app: Express) {
     try {
       const userId = parseInt(req.params.id);
       const { name, username, area, newPassword } = req.body;
-      
+
       console.log('Update user request:', { userId, name, username, area, hasPassword: !!newPassword });
-      
+
       if (!userId || !name || !username || !area) {
         console.log('Missing required fields');
         return res.status(400).json({ message: "Faltan campos requeridos" });
@@ -317,7 +403,7 @@ function registerAdminRoutes(app: Express) {
       }
 
       const updateData: any = { name, username, area };
-      
+
       // Si se proporciona nueva contraseña, hashearla
       if (newPassword && newPassword.trim() !== "") {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -462,7 +548,7 @@ function registerRepositionRoutes(app: Express) {
       }
 
       const { pieces, productos, telaContraste, ...mainData } = repositionData;
-      
+
       // Validar datos según el tipo
       if (mainData.type === 'reproceso') {
         if (!mainData.volverHacer || !mainData.materialesImplicados) {
@@ -670,16 +756,16 @@ function registerRepositionRoutes(app: Express) {
     try {
       const repositionId = parseInt(req.params.id);
       console.log('Tracking request for reposition ID:', repositionId);
-      
+
       if (isNaN(repositionId)) {
         console.log('Invalid reposition ID:', req.params.id);
         return res.status(400).json({ message: "ID de reposición inválido" });
       }
-      
+
       console.log('Getting tracking data for reposition:', repositionId);
       const tracking = await storage.getRepositionTracking(repositionId);
       console.log('Tracking data retrieved:', tracking);
-      
+
       res.json(tracking);
     } catch (error) {
       console.error('Get reposition tracking error:', error);
@@ -801,7 +887,7 @@ function registerRepositionRoutes(app: Express) {
 
     try {
       const user = req.user!;
-      
+
       // Solo admin, envíos y operaciones pueden ver reposiciones pendientes
       if (user.area !== 'admin' && user.area !== 'envios' && user.area !== 'operaciones') {
         return res.json({ count: 0, repositions: [] });
@@ -809,9 +895,9 @@ function registerRepositionRoutes(app: Express) {
 
       const repositions = await storage.getAllRepositions(false);
       const pendingRepositions = repositions.filter(r => r.status === 'pendiente');
-      
+
       console.log('Pending repositions found:', pendingRepositions.length);
-      
+
       res.json({ 
         count: pendingRepositions.length,
         repositions: pendingRepositions 

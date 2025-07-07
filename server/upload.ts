@@ -1,59 +1,54 @@
-
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-// Asegurar que el directorio de uploads existe
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configuración de almacenamiento
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    // Generar nombre único con timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
-
-// Filtros de archivo
-const fileFilter = (req: any, file: any, cb: any) => {
-  const allowedTypes = ['.pdf', '.xml', '.jpg', '.jpeg', '.png'];
-  const ext = path.extname(file.originalname).toLowerCase();
-  
-  if (allowedTypes.includes(ext)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Solo se permiten archivos PDF, XML y imágenes (JPG, PNG, JPEG)'), false);
-  }
-};
 
 export const upload = multer({
-  storage,
-  fileFilter,
+  storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fieldSize: 2 * 1024 * 1024, // 2MB for field values
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow common document types
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|txt/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen y documentos'));
+    }
   }
 });
 
-// Middleware para manejar errores de multer
-export const handleMulterError = (err: any, req: any, res: any, next: any) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'El archivo es demasiado grande (máximo 10MB)' });
+export const handleMulterError = (error: any, req: any, res: any, next: any) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'El archivo es demasiado grande. Máximo 10MB.' });
     }
-    if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({ error: 'Demasiados archivos' });
+    if (error.code === 'LIMIT_FIELD_VALUE') {
+      return res.status(400).json({ message: 'Valor del campo demasiado grande.' });
     }
-  }
-  if (err) {
-    return res.status(400).json({ error: err.message });
+    return res.status(400).json({ message: 'Error al subir archivo: ' + error.message });
+  } else if (error) {
+    return res.status(400).json({ message: error.message });
   }
   next();
 };

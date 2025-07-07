@@ -37,21 +37,31 @@ export function CreateOrderModal({ open, onClose }: CreateOrderModalProps) {
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
+      console.log('Form data to send:', data);
+      
       const formDataToSend = new FormData();
       
-      // Agregar datos del formulario
-      Object.keys(data).forEach(key => {
-        if (key === 'totalPiezas') {
-          formDataToSend.append(key, parseInt(data[key]).toString());
-        } else {
-          formDataToSend.append(key, data[key]);
-        }
+      // Agregar datos del formulario con validación
+      if (data.folio) formDataToSend.append('folio', data.folio);
+      if (data.clienteHotel) formDataToSend.append('clienteHotel', data.clienteHotel);
+      if (data.noSolicitud) formDataToSend.append('noSolicitud', data.noSolicitud);
+      if (data.noHoja) formDataToSend.append('noHoja', data.noHoja);
+      if (data.modelo) formDataToSend.append('modelo', data.modelo);
+      if (data.tipoPrenda) formDataToSend.append('tipoPrenda', data.tipoPrenda);
+      if (data.color) formDataToSend.append('color', data.color);
+      if (data.tela) formDataToSend.append('tela', data.tela);
+      if (data.totalPiezas) formDataToSend.append('totalPiezas', data.totalPiezas);
+
+      // Agregar archivos si los hay
+      selectedFiles.forEach((file) => {
+        formDataToSend.append('documents', file);
       });
 
-      // Agregar archivos
-      selectedFiles.forEach((file, index) => {
-        formDataToSend.append(`documents`, file);
-      });
+      // Log FormData contents for debugging
+      console.log('FormData entries:');
+      for (let [key, value] of formDataToSend.entries()) {
+        console.log(key, value);
+      }
 
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -59,7 +69,8 @@ export function CreateOrderModal({ open, onClose }: CreateOrderModalProps) {
       });
 
       if (!res.ok) {
-        throw new Error("Error al crear el pedido");
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Error al crear el pedido");
       }
 
       return await res.json();
@@ -101,6 +112,44 @@ export function CreateOrderModal({ open, onClose }: CreateOrderModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validar campos requeridos
+    const requiredFields = [
+      { key: 'folio', label: 'Folio' },
+      { key: 'clienteHotel', label: 'Cliente/Hotel' },
+      { key: 'noSolicitud', label: 'No. Solicitud' },
+      { key: 'modelo', label: 'Modelo' },
+      { key: 'tipoPrenda', label: 'Tipo de Prenda' },
+      { key: 'color', label: 'Color' },
+      { key: 'tela', label: 'Tela' },
+      { key: 'totalPiezas', label: 'Total de Piezas' }
+    ];
+    
+    const missingFields = requiredFields.filter(field => 
+      !formData[field.key as keyof typeof formData] || 
+      String(formData[field.key as keyof typeof formData]).trim() === ''
+    );
+    
+    if (missingFields.length > 0) {
+      toast({
+        title: "Campos requeridos faltantes",
+        description: `Por favor completa: ${missingFields.map(f => f.label).join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const totalPiezas = parseInt(formData.totalPiezas);
+    if (isNaN(totalPiezas) || totalPiezas <= 0) {
+      toast({
+        title: "Total de piezas inválido",
+        description: "El total de piezas debe ser un número mayor a 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('Submitting form with data:', formData);
     createOrderMutation.mutate(formData);
   };
 

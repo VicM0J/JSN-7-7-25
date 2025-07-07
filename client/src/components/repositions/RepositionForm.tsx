@@ -64,7 +64,7 @@ import { useEffect } from 'react';
   }
 
   const areas = [
-    'patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'operaciones'
+    'patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'operaciones', 'diseño', 'almacen'
   ];
 
   const urgencyOptions = [
