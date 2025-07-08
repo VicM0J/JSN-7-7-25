@@ -418,12 +418,11 @@ export default function AdminPage() {
               <div><Label>Área</Label>
                 <Select value={editForm.area} onValueChange={val => setEditForm({ ...editForm, area: val })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{["admin","corte","bordado","ensamble","plancha","calidad","envios"].map(a => (
+                  <SelectContent>{["admin","corte","bordado","ensamble","plancha","calidad","envios", "diseño", "patronaje", "almacen"].map(a => (
                     <SelectItem key={a} value={a}>{getAreaDisplayName(a)}</SelectItem>
                   ))}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Nueva Contraseña (opcional)</Label><Input type="password" value={editForm.newPassword} onChange={e => setEditForm({ ...editForm, newPassword: e.target.value })} /></div>
               <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowEditModal(false)}>Cancelar</Button><Button onClick={handleSaveEdit}>Guardar Cambios</Button></div>
             </div>
           </DialogContent>
