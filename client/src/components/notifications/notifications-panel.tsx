@@ -117,9 +117,15 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   };
 
   const formatDate = (dateInput: string | Date) => {
+    // Crear fecha en zona horaria de México
     const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    
+    // Convertir ambas fechas a hora de México para comparación correcta
+    const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    const mexicoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    
+    const diffMs = mexicoNow.getTime() - mexicoDate.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
 

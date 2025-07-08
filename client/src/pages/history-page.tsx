@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Calendar, Filter, Download } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Search, Calendar, Filter, Download, Trash2, Eye, FileText } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type Order, type Area } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import Swal from 'sweetalert2';
 
 export default function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -17,6 +19,11 @@ export default function HistoryPage() {
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["/api/orders"],
@@ -57,21 +64,22 @@ export default function HistoryPage() {
 
   const formatDate = (date: string | Date) => {
     const d = typeof date === "string" ? new Date(date) : date;
-    return d.toLocaleDateString('es-ES', {
+    return d.toLocaleString('es-ES', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Mexico_City'
     });
   };
 
   const filterOrdersByDate = (order: Order) => {
     if (dateFilter === "all") return true;
-    
+
     const orderDate = new Date(order.createdAt);
     const now = new Date();
-    
+
     switch (dateFilter) {
       case "today":
         return orderDate.toDateString() === now.toDateString();
@@ -91,16 +99,69 @@ export default function HistoryPage() {
       order.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.clienteHotel.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.modelo.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesArea = areaFilter === "all" || order.currentArea === areaFilter;
     const matchesStatus = statusFilter === "all" || order.status === statusFilter;
     const matchesDate = filterOrdersByDate(order);
-    
+
     return matchesSearch && matchesArea && matchesStatus && matchesDate;
   });
 
   const completedOrders = filteredOrders.filter(order => order.status === 'completed');
   const activeOrders = filteredOrders.filter(order => order.status === 'active');
+
+  const deleteMutation = useMutation({
+    mutationFn: async (orderId: number) => {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Error al eliminar pedido');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({
+        title: "Pedido eliminado",
+        description: "El pedido ha sido eliminado correctamente",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteOrder = async (orderId: number) => {
+    if (user?.area !== 'admin' && user?.area !== 'envios') {
+      toast({
+        title: "Sin permisos",
+        description: "Solo Admin o Envíos pueden eliminar pedidos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción no se puede deshacer',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+      deleteMutation.mutate(orderId);
+    }
+  };
 
   const handleExportToExcel = async () => {
     setIsExporting(true);
@@ -227,7 +288,7 @@ export default function HistoryPage() {
               />
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             </div>
-            
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Estado" />
@@ -301,7 +362,7 @@ export default function HistoryPage() {
                           {getAreaDisplayName(order.currentArea)}
                         </Badge>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
                         <div>
                           <span className="font-medium">Modelo:</span> {order.modelo}
@@ -323,7 +384,7 @@ export default function HistoryPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="text-right">
                       <p className="text-sm text-gray-500">Creado</p>
                       <p className="text-sm font-medium">{formatDate(order.createdAt)}</p>
@@ -335,9 +396,45 @@ export default function HistoryPage() {
                       )}
                     </div>
                   </div>
+                  <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedOrderId(order.id);
+                          setShowDetails(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver Detalles
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedOrderId(order.id);
+                          setShowHistory(true);
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Historial
+                      </Button>
+                      {(user?.area === 'admin' || user?.area === 'envios') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteOrder(order.id)}
+                          className="text-red-600 hover:text-red-700"
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar
+                        </Button>
+                      )}
+                    </div>
                 </div>
               ))}
-              
+
               {filteredOrders.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <Calendar size={48} className="mx-auto mb-4 text-gray-300" />

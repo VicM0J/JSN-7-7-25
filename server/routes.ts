@@ -209,6 +209,28 @@ function registerOrderRoutes(app: Express) {
     }
   });
 
+  router.delete("/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
+
+    try {
+      const user = req.user!;
+      if (user.area !== 'admin' && user.area !== 'envios') {
+        return res.status(403).json({ message: "Solo Admin o Envíos pueden eliminar pedidos" });
+      }
+
+      const orderId = parseInt(req.params.id);
+      if (isNaN(orderId)) {
+        return res.status(400).json({ message: "ID de pedido inválido" });
+      }
+
+      await storage.deleteOrder(orderId);
+      res.json({ message: "Pedido eliminado correctamente" });
+    } catch (error) {
+      console.error('Delete order error:', error);
+      res.status(500).json({ message: "Error al eliminar pedido" });
+    }
+  });
+
   app.use("/api/orders", router);
 }
 

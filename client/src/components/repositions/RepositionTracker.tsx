@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -49,20 +48,20 @@ interface TrackingData {
 
 export function RepositionTracker({ repositionId, onClose }: RepositionTrackerProps) {
   console.log('RepositionTracker mounted with repositionId:', repositionId);
-  
+
   const { data: trackingData, isLoading, error } = useQuery<TrackingData>({
     queryKey: ['repositions', repositionId, 'tracking'],
     queryFn: async () => {
       console.log('Fetching tracking data for repositionId:', repositionId);
       const response = await fetch(`/api/repositions/${repositionId}/tracking`);
       console.log('Response status:', response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API Error:', response.status, errorText);
         throw new Error(`Failed to fetch tracking data: ${response.status} - ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log('Tracking data received:', data);
       return data;
@@ -102,11 +101,12 @@ export function RepositionTracker({ repositionId, onClose }: RepositionTrackerPr
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
       year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Mexico_City'
     });
   };
 
@@ -317,46 +317,7 @@ export function RepositionTracker({ repositionId, onClose }: RepositionTrackerPr
             </CardContent>
           </Card>
 
-          {/* History Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Historial de Movimientos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {trackingData.history.map((event) => (
-                  <div key={event.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium text-sm">{event.action}</p>
-                          <p className="text-sm text-gray-600">{event.description}</p>
-                          {event.fromArea && event.toArea && (
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                {getAreaDisplayName(event.fromArea)}
-                              </Badge>
-                              <ArrowRight className="w-3 h-3 text-gray-400" />
-                              <Badge variant="outline" className="text-xs">
-                                {getAreaDisplayName(event.toArea)}
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-500 flex-shrink-0">
-                          {formatDate(event.timestamp)}
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Por: {event.userName}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          
         </div>
       </DialogContent>
     </Dialog>

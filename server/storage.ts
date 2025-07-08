@@ -48,6 +48,21 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
+// Configurar zona horaria de México
+process.env.TZ = 'America/Mexico_City';
+
+// Función helper para obtener fecha actual en zona horaria de México
+const getMexicoTime = () => {
+  return new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' });
+};
+
+// Función helper para crear timestamp con zona horaria de México
+const createMexicoTimestamp = () => {
+  const now = new Date();
+  const mexicoTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+  return mexicoTime;
+};
+
 const PostgresSessionStore = connectPg(session);
 
 // Función para enviar notificaciones por WebSocket
@@ -245,7 +260,7 @@ export class DatabaseStorage implements IStorage {
   async createOrder(order: InsertOrder, createdBy: number): Promise<Order> {
     const [newOrder] = await db
       .insert(orders)
-      .values({ ...order, createdBy })
+      .values({ ...order, createdBy, createdAt: createMexicoTimestamp() })
       .returning();
 
     await db.insert(orderPieces).values({
@@ -508,6 +523,7 @@ export class DatabaseStorage implements IStorage {
       fromArea: options?.fromArea,
       toArea: options?.toArea,
       pieces: options?.pieces,
+      createdAt: createMexicoTimestamp()
     });
   }
 
@@ -595,13 +611,12 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    await db.insert(repositionHistory)
-      .values({
-        repositionId: reposition.id,
-        action: 'created',
-        description: `Reposition ${reposition.type} created`,
-        userId: createdBy,
-      });
+    await this.addRepositionHistory(
+      reposition.id,
+      'created',
+      `Reposición ${reposition.type} creada`,
+      createdBy,
+    );
 
     // Notificar a admin y operaciones sobre nueva reposición
     const adminUsers = await db.select().from(users)
@@ -701,13 +716,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(repositions.id, repositionId))
       .returning();
 
-    await db.insert(repositionHistory)
-      .values({
-        repositionId,
-        action: action === 'aprobado' ? 'approved' : 'rejected',
-        description: `Reposición ${action === 'aprobado' ? 'aprobada' : 'rechazada'}${notes ? `: ${notes}` : ''}`,
-        userId,
-      });
+    await this.addRepositionHistory(
+      repositionId,
+      action === 'aprobado' ? 'approved' : 'rejected',
+      `Reposición ${action === 'aprobado' ? 'aprobada' : 'rechazada'}${notes ? `: ${notes}` : ''}`,
+      userId,
+    );
 
     // Notificar al solicitante original
     await this.createNotification({
@@ -729,15 +743,14 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
 
-    await db.insert(repositionHistory)
-      .values({
-        repositionId: transfer.repositionId,
-        action: 'transfer_requested',
-        description: `Transfer requested from ${transfer.fromArea} to ${transfer.toArea}`,
-        fromArea: transfer.fromArea,
-        toArea: transfer.toArea,
-        userId: createdBy,
-      });
+    await this.addRepositionHistory(
+      transfer.repositionId,
+      'transfer_requested',
+      `Transfer requested from ${transfer.fromArea} to ${transfer.toArea}`,
+      createdBy,
+      transfer.fromArea,
+      transfer.toArea
+    );
 
     // Obtener la reposición para el folio
     const reposition = await this.getRepositionById(transfer.repositionId);
@@ -775,15 +788,14 @@ export class DatabaseStorage implements IStorage {
         .where(eq(repositions.id, transfer.repositionId));
     }
 
-    await db.insert(repositionHistory)
-      .values({
-        repositionId: transfer.repositionId,
-        action: `transfer_${action}`,
-        description: `Transfer ${action} from ${transfer.fromArea} to ${transfer.toArea}`,
-        fromArea: transfer.fromArea,
-        toArea: transfer.toArea,
-        userId,
-      });
+    await this.addRepositionHistory(
+      transfer.repositionId,
+      `transfer_${action}`,
+      `Transfer ${action} from ${transfer.fromArea} to ${transfer.toArea}`,
+      userId,
+      transfer.fromArea,
+      transfer.toArea
+    );
 
     // Obtener la reposición para el folio
     const reposition = await this.getRepositionById(transfer.repositionId);
@@ -869,13 +881,12 @@ export class DatabaseStorage implements IStorage {
 
     console.log('Updated reposition status to eliminado');
 
-    await db.insert(repositionHistory)
-      .values({
-        repositionId,
-        action: 'deleted',
-        description: `Reposición eliminada. Motivo: ${reason}`,
-        userId,
-      });
+    await this.addRepositionHistory(
+      repositionId,
+      'deleted',
+      `Reposición eliminada. Motivo: ${reason}`,
+      userId,
+    );
 
     console.log('Added history entry');
 
@@ -901,13 +912,12 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(repositions.id, repositionId));
 
-    await db.insert(repositionHistory)
-      .values({
-        repositionId,
-        action: 'completed',
-        description: `Reposición finalizada${notes ? `: ${notes}` : ''}`,
-        userId,
-      });
+    await this.addRepositionHistory(
+      repositionId,
+      'completed',
+      `Reposición finalizada${notes ? `: ${notes}` : ''}`,
+      userId,
+    );
 
     // Crear notificación para el solicitante
     const reposition = await this.getRepositionById(repositionId);
@@ -923,13 +933,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async requestCompletionApproval(repositionId: number, userId: number, notes?: string): Promise<void> {
-    await db.insert(repositionHistory)
-        .values({
-            repositionId,
-            action: 'completion_requested',
-            description: `Solicitud de finalización enviada${notes ? `: ${notes}` : ''}`,
-            userId,
-        });
+    await this.addRepositionHistory(
+        repositionId,
+        'completion_requested',
+        `Solicitud de finalización enviada${notes ? `: ${notes}` : ''}`,
+        userId,
+    );
 
     // Crear notificaciones para admin, envíos y operaciones
     const adminUsers = await db.select().from(users)
@@ -1591,12 +1600,12 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     }
 
     // Registrar en historial
-    await db.insert(repositionHistory).values({
+    await this.addRepositionHistory(
       repositionId,
-      action: 'material_status_updated',
-      description: `Estado de materiales actualizado: ${materialStatus}${missingMaterials ? ` - Faltantes: ${missingMaterials}` : ''}`,
-      userId: 1 // Esto debería ser el ID del usuario actual
-    });
+      'material_status_updated',
+      `Estado de materiales actualizado: ${materialStatus}${missingMaterials ? ` - Faltantes: ${missingMaterials}` : ''}`,
+      1 // Esto debería ser el ID del usuario actual
+    );
   }
 
   async pauseReposition(repositionId: number, reason: string, userId: number): Promise<void> {
@@ -1625,12 +1634,12 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     }
 
     // Registrar en historial
-    await db.insert(repositionHistory).values({
+    await this.addRepositionHistory(
       repositionId,
-      action: 'paused',
-      description: `Reposición pausada por almacén. Motivo: ${reason}`,
+      'paused',
+      `Reposición pausada por almacén. Motivo: ${reason}`,
       userId
-    });
+    );
 
     // Notificar a áreas relevantes
     const areaUsers = await db.select().from(users)
@@ -1663,12 +1672,12 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       .where(eq(repositionMaterials.repositionId, repositionId));
 
     // Registrar en historial
-    await db.insert(repositionHistory).values({
+    await this.addRepositionHistory(
       repositionId,
-      action: 'resumed',
-      description: 'Reposición reanudada por almacén',
+      'resumed',
+      'Reposición reanudada por almacén',
       userId
-    });
+    );
   }
 
   async getRepositionMaterialStatus(repositionId: number): Promise<any> {
@@ -1778,7 +1787,7 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     return result;
   }
 
-  async createReposition(data: InsertReposition & { folio: string, productos?: any[], telaContraste?: any, volverHacer?:string, materialesImplicados?:string, observaciones?: string }, pieces: InsertRepositionPiece[], createdBy: number): Promise<Reposition> {
+async createReposition(data: InsertReposition & { folio: string, productos?: any[], telaContraste?: any, volverHacer?:string, materialesImplicados?:string, observaciones?: string }, pieces: InsertRepositionPiece[], createdBy: number): Promise<Reposition> {
     const { productos, telaContraste, volverHacer, materialesImplicados, observaciones, ...mainRepositionData } = data;
 
     const [reposition] = await db.insert(repositions)
@@ -1788,7 +1797,8 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
         volverHacer: volverHacer,
         descripcionSuceso: data.descripcionSuceso,
         materialesImplicados: materialesImplicados,
-        observaciones: observaciones
+        observaciones: observaciones,
+        createdAt: createMexicoTimestamp()
       })
       .returning();
 
@@ -1830,13 +1840,12 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       }
     }
 
-    await db.insert(repositionHistory)
-      .values({
-        repositionId: reposition.id,
-        action: 'created',
-        description: `Reposition ${reposition.type} created`,
-        userId: createdBy,
-      });
+    await this.addRepositionHistory(
+      reposition.id,
+      'created',
+      `Reposición ${reposition.type} creada`,
+      createdBy,
+    );
 
     // Notificar a admin, operaciones y envíos sobre nueva reposición
     const adminUsers = await db.select().from(users)
@@ -1928,6 +1937,27 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       console.error('Error updating user:', error);
       throw error;
     }
+  }
+
+  async addRepositionHistory(
+    repositionId: number,
+    action: string,
+    description: string,
+    userId: number,
+    fromArea?: Area,
+    toArea?: Area,
+    pieces?: number
+  ): Promise<void> {
+    await db.insert(repositionHistory).values({
+      repositionId,
+      action,
+      description,
+      userId,
+      fromArea,
+      toArea,
+      pieces,
+      createdAt: createMexicoTimestamp()
+    });
   }
 }
 

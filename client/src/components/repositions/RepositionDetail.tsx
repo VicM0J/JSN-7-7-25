@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileUpload } from '@/components/ui/file-upload';
 import { X, Clock, User, Package, FileText, Upload, Download, Printer } from 'lucide-react';
 import { RepositionPrintSummary } from './RepositionPrintSummary';
 import Swal from 'sweetalert2';
+import { HistoryTimeline } from "@/components/shared/HistoryTimeline";
 
 interface RepositionDetail {
   id: number;

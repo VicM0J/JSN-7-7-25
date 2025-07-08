@@ -99,27 +99,48 @@ export function useWebSocket() {
     const notificationListener = (notification: any) => {
       console.log('Nueva notificación recibida:', notification);
 
-      // Invalidar y refrescar todas las queries para todos los usuarios
-      queryClient.invalidateQueries();
-      queryClient.refetchQueries();
-      
-      // Invalidaciones específicas para asegurar actualización
+      // Invalidar inmediatamente todas las queries relacionadas con historial
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/repositions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       queryClient.invalidateQueries({ queryKey: ["repositions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/transfers/pending"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/almacen/repositions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
       
-      // Refetch específicos
+      // Invalidar historial específico si viene el ID
+      if (notification.orderId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/orders", notification.orderId, "history"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/orders", notification.orderId] });
+        // Forzar refetch inmediato del historial con delay para asegurar datos frescos
+        setTimeout(() => {
+          queryClient.refetchQueries({ queryKey: ["/api/orders", notification.orderId, "history"] });
+        }, 500);
+      }
+      if (notification.repositionId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/repositions", notification.repositionId, "history"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/repositions", notification.repositionId] });
+        queryClient.invalidateQueries({ queryKey: ["/api/repositions", notification.repositionId, "tracking"] });
+        // Forzar refetch inmediato del historial
+        queryClient.refetchQueries({ queryKey: ["/api/repositions", notification.repositionId, "history"] });
+        queryClient.refetchQueries({ queryKey: ["/api/repositions", notification.repositionId, "tracking"] });
+      }
+      
+      // Refetch global forzado para asegurar consistencia
       queryClient.refetchQueries({ queryKey: ["repositions"] });
       queryClient.refetchQueries({ queryKey: ["/api/orders"] });
       queryClient.refetchQueries({ queryKey: ["/api/almacen/repositions"] });
       queryClient.refetchQueries({ queryKey: ["/api/dashboard/stats"] });
+      
+      // Invalidar y refrescar todo después de invalidaciones específicas
+      setTimeout(() => {
+        queryClient.invalidateQueries();
+        queryClient.refetchQueries();
+      }, 100);
 
       // Mostrar notificación visual para todos los tipos
       if (notification && (

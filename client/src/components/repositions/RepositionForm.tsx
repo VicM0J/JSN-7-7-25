@@ -129,10 +129,10 @@ import { useEffect } from 'react';
     const createRepositionMutation = useMutation({
       mutationFn: async (data: RepositionFormData) => {
         const formDataToSend = new FormData();
-        
+
         // Collect all pieces from all products
         const allPieces = productos.flatMap(producto => producto.pieces);
-        
+
         // Agregar datos del formulario con las piezas incluidas
         formDataToSend.append('repositionData', JSON.stringify({ 
           ...data, 
