@@ -56,7 +56,8 @@ const statusColors = {
   aprobado: 'bg-green-100 text-green-800',
   rechazado: 'bg-red-100 text-red-800',
   en_proceso: 'bg-blue-100 text-blue-800',
-  completado: 'bg-gray-100 text-gray-800'
+  completado: 'bg-gray-100 text-gray-800',
+  cancelado: 'bg-orange-100 text-orange-800'
 };
 
 const urgencyColors = {

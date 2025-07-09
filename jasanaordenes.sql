@@ -43,7 +43,12 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type') THEN
-        CREATE TYPE notification_type AS ENUM ('info', 'warning', 'error');
+        CREATE TYPE notification_type AS ENUM (
+            'transfer_request', 'transfer_accepted', 'transfer_rejected', 'order_completed',
+            'new_reposition', 'reposition_transfer', 'reposition_approved', 'reposition_rejected',
+            'reposition_completed', 'reposition_deleted', 'reposition_cancelled', 'reposition_paused',
+            'reposition_resumed', 'reposition_received', 'transfer_processed', 'completion_approval_needed'
+        );
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'urgency') THEN
@@ -78,12 +83,87 @@ BEGIN
     END;
 
     BEGIN
-        ALTER TYPE notification_type ADD VALUE 'reposition_deleted';
+        ALTER TYPE reposition_status ADD VALUE 'cancelado';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'transfer_request';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'transfer_accepted';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'transfer_rejected';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'order_completed';
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
 
     BEGIN
         ALTER TYPE notification_type ADD VALUE 'new_reposition';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_transfer';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_approved';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_rejected';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_completed';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_deleted';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_cancelled';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_paused';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_resumed';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'reposition_received';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'transfer_processed';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'completion_approval_needed';
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
 END

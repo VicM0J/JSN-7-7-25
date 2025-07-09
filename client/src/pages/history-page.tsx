@@ -10,6 +10,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type Order, type Area } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { OrderHistoryModal } from "@/components/orders/order-history-modal";
+import { OrderDetailsModal } from "@/components/orders/order-details-modal";
+import { apiRequest } from "@/lib/queryClient";
 import Swal from 'sweetalert2';
 
 export default function HistoryPage() {
@@ -446,6 +449,23 @@ export default function HistoryPage() {
         </CardContent>
       </Card>
       </div>
+
+      {/* Modals */}
+      {showHistory && selectedOrderId && (
+        <OrderHistoryModal
+          open={showHistory}
+          onClose={() => setShowHistory(false)}
+          orderId={selectedOrderId}
+        />
+      )}
+
+      {showDetails && selectedOrderId && (
+        <OrderDetailsModal
+          open={showDetails}
+          onClose={() => setShowDetails(false)}
+          orderId={selectedOrderId}
+        />
+      )}
     </Layout>
   );
 }

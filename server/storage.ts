@@ -15,6 +15,7 @@ import {
   repositionMaterials,
   adminPasswords,
   agendaEvents,
+  documents,
   type User, 
   type InsertUser,
   type Order,
@@ -39,8 +40,7 @@ import {
   type InsertAgendaEvent,
   type Area,
   type RepositionType,
-  type RepositionStatus,
-  documents
+  type RepositionStatus
 } from "@shared/schema";
 import { db } from './db';
 import { eq, and, or, desc, asc, ne } from "drizzle-orm";
@@ -192,6 +192,8 @@ export interface IStorage {
     path: string;
     uploadedBy: number;
   }): Promise<any>;
+
+  getOrderDocuments(orderId: number): Promise<any[]>;
 }
 
 export interface LocalRepositionTimer {
@@ -647,10 +649,12 @@ export class DatabaseStorage implements IStorage {
         )
       );
     } else if (userArea !== 'admin' && userArea !== 'envios') {
+        // Otras áreas no pueden ver reposiciones eliminadas, completadas ni canceladas
         query = (query as any).where(
           and(
             ne(repositions.status, 'eliminado' as RepositionStatus),
-            ne(repositions.status, 'completado' as RepositionStatus)
+            ne(repositions.status, 'completado' as RepositionStatus),
+            ne(repositions.status, 'cancelado' as RepositionStatus)
           )
         );
     }
@@ -661,6 +665,15 @@ export class DatabaseStorage implements IStorage {
   async getRepositionsByArea(area: Area, userId?: number): Promise<Reposition[]> {
     let whereCondition;
 
+    // Solo admin y envíos pueden ver reposiciones canceladas
+    const excludeStatuses = area === 'admin' || area === 'envios' 
+      ? [ne(repositions.status, 'eliminado' as RepositionStatus)]
+      : [
+          ne(repositions.status, 'eliminado' as RepositionStatus),
+          ne(repositions.status, 'completado' as RepositionStatus),
+          ne(repositions.status, 'cancelado' as RepositionStatus)
+        ];
+
     if (userId) {
       // Si se proporciona userId, mostrar reposiciones del área actual O creadas por el usuario
       whereCondition = and(
@@ -668,15 +681,13 @@ export class DatabaseStorage implements IStorage {
           eq(repositions.currentArea, area),
           eq(repositions.createdBy, userId)
         ),
-        ne(repositions.status, 'eliminado' as RepositionStatus),
-        ne(repositions.status, 'completado' as RepositionStatus)
+        ...excludeStatuses
       );
     } else {
       // Sin userId, solo mostrar del área actual
       whereCondition = and(
         eq(repositions.currentArea, area),
-        ne(repositions.status, 'eliminado' as RepositionStatus),
-        ne(repositions.status, 'completado' as RepositionStatus)
+        ...excludeStatuses
       );
     }
 
@@ -861,8 +872,50 @@ export class DatabaseStorage implements IStorage {
       .where(eq(repositions.id, repositionId));
   }
 
-  async deleteReposition(repositionId: number, userId: number, reason: string): Promise<void> {
-    console.log('Deleting reposition:', repositionId, 'by user:', userId, 'reason:', reason);
+  async cancelReposition(repositionId: number, userId: number, reason: string): Promise<void> {
+    console.log('Cancelling reposition:', repositionId, 'by user:', userId, 'reason:', reason);
+
+    // Obtener la reposición antes de cancelarla
+    const reposition = await this.getRepositionById(repositionId);
+    if (!reposition) {
+      throw new Error('Reposición no encontrada');
+    }
+
+    console.log('Found reposition:', reposition.folio);
+
+    await db.update(repositions)
+      .set({
+        status: 'cancelado' as RepositionStatus,
+        completedAt: new Date(),
+      })
+      .where(eq(repositions.id, repositionId));
+
+    console.log('Updated reposition status to cancelado');
+
+    await this.addRepositionHistory(
+      repositionId,
+      'cancelled',
+      `Reposición cancelada. Motivo: ${reason}`,
+      userId,
+    );
+
+    console.log('Added history entry');
+
+    // Crear notificación para el solicitante si no es la misma persona
+    if (reposition.createdBy !== userId) {
+      await this.createNotification({
+        userId: reposition.createdBy,
+        type: 'reposition_cancelled',
+        title: 'Reposición Cancelada',
+        message: `La reposición ${reposition.folio} ha sido cancelada. Motivo: ${reason}`,
+        repositionId: repositionId,
+      });
+      console.log('Created notification for user:', reposition.createdBy);
+    }
+  }
+
+  async deleteReposition(repositionId: number, userId: number): Promise<void> {
+    console.log('Deleting reposition:', repositionId, 'by user:', userId);
 
     // Obtener la reposición antes de eliminarla
     const reposition = await this.getRepositionById(repositionId);
@@ -870,7 +923,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Reposición no encontrada');
     }
 
-    console.log('Found reposition:', reposition.folio);
+    console.log('Found reund reposition:', reposition.folio);
 
     await db.update(repositions)
       .set({
@@ -884,7 +937,7 @@ export class DatabaseStorage implements IStorage {
     await this.addRepositionHistory(
       repositionId,
       'deleted',
-      `Reposición eliminada. Motivo: ${reason}`,
+      `Reposición eliminada permanentemente`,
       userId,
     );
 
@@ -896,7 +949,7 @@ export class DatabaseStorage implements IStorage {
         userId: reposition.createdBy,
         type: 'reposition_deleted',
         title: 'Reposición Eliminada',
-        message: `La reposición ${reposition.folio} ha sido eliminada. Motivo: ${reason}`,
+        message: `La reposición ${reposition.folio} ha sido eliminada permanentemente`,
         repositionId: repositionId,
       });
       console.log('Created notification for user:', reposition.createdBy);
@@ -1725,6 +1778,24 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     path: string;
     uploadedBy: number;
   }): Promise<any> {
+    console.log('=== SAVE ORDER DOCUMENT DEBUG ===');
+    console.log('Document data received:', documentData);
+    
+    // Validate required fields
+    if (!documentData.size || documentData.size <= 0) {
+      throw new Error('Size field is required and must be greater than 0');
+    }
+    
+    if (!documentData.filename || !documentData.originalName) {
+      throw new Error('Filename and originalName are required');
+    }
+    
+    if (!documentData.orderId || !documentData.uploadedBy) {
+      throw new Error('OrderId and uploadedBy are required');
+    }
+    
+    console.log('All validations passed, inserting document...');
+    
     const [document] = await db.insert(documents)
       .values({
         filename: documentData.filename,
@@ -1736,6 +1807,9 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       })
       .returning();
 
+    console.log('Document saved successfully:', document);
+    console.log('=== END SAVE ORDER DOCUMENT DEBUG ===');
+    
     return document;
   }
 
@@ -1959,6 +2033,55 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
       createdAt: createMexicoTimestamp()
     });
   }
+
+   async getOrderHistory(orderId: number): Promise<any[]> {
+    try {
+      const history = await db
+        .select({
+          id: orderHistory.id,
+          action: orderHistory.action,
+          description: orderHistory.description,
+          fromArea: orderHistory.fromArea,
+          toArea: orderHistory.toArea,
+          pieces: orderHistory.pieces,
+          createdAt: orderHistory.createdAt,
+        })
+        .from(orderHistory)
+        .where(eq(orderHistory.orderId, orderId))
+        .orderBy(asc(orderHistory.createdAt));
+
+      return history;
+    } catch (error) {
+      console.error("Error getting order history:", error);
+      throw new Error("Error al obtener historial del pedido");
+    }
+  }
+
+  async getOrderDocuments(orderId: number): Promise<any[]> {
+    try {
+      const docs = await db
+        .select({
+          id: documents.id,
+          filename: documents.filename,
+          originalName: documents.originalName,
+          size: documents.size,
+          uploadedBy: documents.uploadedBy,
+          createdAt: documents.createdAt,
+          uploaderName: users.name
+        })
+        .from(documents)
+        .leftJoin(users, eq(documents.uploadedBy, users.id))
+        .where(eq(documents.orderId, orderId))
+        .orderBy(desc(documents.createdAt));
+
+      return docs;
+    } catch (error) {
+      console.error("Error getting order documents:", error);
+      throw new Error("Error al obtener documentos del pedido");
+    }
+  }
+
+  
 }
 
 export const storage = new DatabaseStorage();

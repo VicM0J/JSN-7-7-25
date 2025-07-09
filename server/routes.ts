@@ -190,6 +190,67 @@ function registerOrderRoutes(app: Express) {
     }
   });
 
+  router.get("/:id/documents", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
+
+    try {
+      const orderId = parseInt(req.params.id);
+      const documents = await storage.getOrderDocuments(orderId);
+      res.json(documents);
+    } catch (error) {
+      console.error('Get order documents error:', error);
+      res.status(500).json({ message: "Error al cargar documentos" });
+    }
+  });
+
+  router.post("/:id/documents", upload.single('document'), handleMulterError, async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
+
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No se proporcionó archivo" });
+      }
+
+      const orderId = parseInt(req.params.id);
+      if (isNaN(orderId)) {
+        return res.status(400).json({ message: "ID de pedido inválido" });
+      }
+
+      const user = req.user!;
+      
+      console.log('=== ORDER DOCUMENT UPLOAD DEBUG ===');
+      console.log('File info:', {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        size: req.file.size,
+        path: req.file.path,
+        orderId: orderId,
+        userId: user.id
+      });
+      console.log('=== END DEBUG ===');
+      
+      // Verify all required fields are present
+      if (!req.file.size || req.file.size <= 0) {
+        return res.status(400).json({ message: "Archivo inválido: tamaño no disponible" });
+      }
+      
+      // Save document with proper data
+      const document = await storage.saveOrderDocument({
+        orderId: orderId,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        path: req.file.path,
+        uploadedBy: user.id
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error('Upload order document error:', error);
+      res.status(500).json({ message: "Error al subir documento" });
+    }
+  });
+
   router.post("/:id/complete", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
 
@@ -625,21 +686,25 @@ function registerRepositionRoutes(app: Express) {
 
       let repositions;
 
-
-      if ((user.area === 'admin' || user.area === 'envios') && (!area || area === 'all')) {
-        repositions = await storage.getAllRepositions(false);
-      } 
-
-      else if (user.area === 'diseño') {
+      if (user.area === 'diseño') {
         // Diseño puede ver todas las reposiciones aprobadas
         repositions = await storage.getRepositions(undefined, 'diseño');
       }
-
+      else if ((user.area === 'admin' || user.area === 'envios')) {
+        if (area && area !== 'all') {
+          // Admin/envíos con filtro de área específica
+          repositions = await storage.getRepositionsByArea(area as Area, user.id);
+        } else {
+          // Admin/envíos sin filtro de área (todas las reposiciones)
+          repositions = await storage.getAllRepositions(false);
+        }
+      }
       else if (area && area !== 'all') {
-        repositions = await storage.getRepositionsByArea(area, user.id);
+        // Otras áreas con filtro específico
+        repositions = await storage.getRepositionsByArea(area as Area, user.id);
       } 
-
       else {
+        // Otras áreas sin filtro (su área actual)
         repositions = await storage.getRepositionsByArea(user.area, user.id);
       }
 
@@ -795,6 +860,33 @@ function registerRepositionRoutes(app: Express) {
     }
   });
 
+  router.post("/:id/cancel", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
+
+    try {
+      const user = req.user!;
+      const repositionId = parseInt(req.params.id);
+      if (isNaN(repositionId)) {
+        return res.status(400).json({ message: "ID de reposición inválido" });
+      }
+      const { reason } = req.body;
+
+      if (!reason || reason.trim().length === 0) {
+        return res.status(400).json({ message: "El motivo de cancelación es obligatorio" });
+      }
+
+      if (reason.trim().length < 10) {
+        return res.status(400).json({ message: "El motivo debe tener al menos 10 caracteres" });
+      }
+
+      await storage.cancelReposition(repositionId, user.id, reason.trim());
+      res.json({ message: "Reposición cancelada correctamente" });
+    } catch (error) {
+      console.error('Cancel reposition error:', error);
+      res.status(500).json({ message: "Error al cancelar reposición" });
+    }
+  });
+
   router.delete("/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
 
@@ -810,19 +902,8 @@ function registerRepositionRoutes(app: Express) {
       if (isNaN(repositionId)) {
         return res.status(400).json({ message: "ID de reposición inválido" });
       }
-      const { reason } = req.body;
 
-      console.log('Delete request data:', { repositionId, reason });
-
-      if (!reason || reason.trim().length === 0) {
-        return res.status(400).json({ message: "El motivo de eliminación es obligatorio" });
-      }
-
-      if (reason.trim().length < 10) {
-        return res.status(400).json({ message: "El motivo debe tener al menos 10 caracteres" });
-      }
-
-      await storage.deleteReposition(repositionId, user.id, reason.trim());
+      await storage.deleteReposition(repositionId, user.id);
       console.log('Reposition deleted successfully:', repositionId);
       res.json({ message: "Reposición eliminada correctamente" });
     } catch (error) {

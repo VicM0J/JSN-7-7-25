@@ -10,7 +10,24 @@ export const urgencyEnum = pgEnum("urgency", ["urgente", "intermedio", "poco_urg
 export const repositionStatusEnum = pgEnum("reposition_status", ["pendiente", "aprobado", "rechazado", "completado", "eliminado"]);
 export const orderStatusEnum = pgEnum("order_status", ["active", "completed"]);
 export const transferStatusEnum = pgEnum("transfer_status", ["pending", "accepted", "rejected"]);
-export const notificationTypeEnum = pgEnum("notification_type", ["transfer_request", "transfer_accepted", "transfer_rejected", "order_completed"]);
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "transfer_request", 
+  "transfer_accepted", 
+  "transfer_rejected", 
+  "order_completed",
+  "new_reposition",
+  "reposition_transfer",
+  "reposition_approved", 
+  "reposition_rejected",
+  "reposition_completed",
+  "reposition_deleted",
+  "reposition_cancelled",
+  "reposition_paused",
+  "reposition_resumed",
+  "reposition_received",
+  "transfer_processed",
+  "completion_approval_needed"
+]);
 export const materialStatusEnum = pgEnum("material_status", ["disponible", "falta_parcial", "no_disponible"]);
 
 export const users = pgTable("users", {

@@ -23,7 +23,7 @@ interface Reposition {
   fechaSolicitud: string;
   modeloPrenda: string;
   currentArea: string;
-  status: 'pendiente' | 'aprobado' | 'rechazado' | 'en_proceso' | 'completado' | 'eliminado';
+  status: 'pendiente' | 'aprobado' | 'rechazado' | 'en_proceso' | 'completado' | 'eliminado' | 'cancelado';
   urgencia: 'urgente' | 'intermedio' | 'poco_urgente';
   createdAt: string;
 }
@@ -38,7 +38,8 @@ const statusColors = {
   rechazado: 'bg-red-100 text-red-800',
   en_proceso: 'bg-blue-100 text-blue-800',
   completado: 'bg-gray-100 text-gray-800',
-  eliminado: 'bg-red-100 text-red-800'
+  eliminado: 'bg-red-100 text-red-800',
+  cancelado: 'bg-orange-100 text-orange-800'
 };
 
 const urgencyColors = {
@@ -77,19 +78,30 @@ export function RepositionList({ userArea }: { userArea: string }) {
   const { data: repositions = [], isLoading } = useQuery<Reposition[]>({
     queryKey: ['repositions', filterArea, showHistory, includeDeleted],
     queryFn: async () => {
-      let url = showHistory && (userArea === 'admin' || userArea === 'envios')
-        ? `/api/repositions/all?includeDeleted=${includeDeleted}`
-        : (filterArea && filterArea !== 'all')
-          ? `/api/repositions?area=${filterArea}`
-          : '/api/repositions';
+      let url = '/api/repositions';
+      
+      if (showHistory && (userArea === 'admin' || userArea === 'envios')) {
+        url = `/api/repositions/all?includeDeleted=${includeDeleted}`;
+      } else if (filterArea && filterArea !== 'all') {
+        url = `/api/repositions?area=${filterArea}`;
+      }
 
       const response = await fetch(url);
       if (!response.ok) throw new Error('Error al cargar las reposiciones');
       const data = await response.json();
 
-      // Filtrar reposiciones completadas y eliminadas para usuarios que no son admin ni envíos
+      // Para admin y envíos, cuando no están en modo historial, aplicar filtro por área si está seleccionado
+      if ((userArea === 'admin' || userArea === 'envios') && !showHistory && filterArea && filterArea !== 'all') {
+        return data.filter((repo: any) => repo.currentArea === filterArea || repo.solicitanteArea === filterArea);
+      }
+
+      // Filtrar reposiciones completadas, eliminadas y canceladas para usuarios que no son admin ni envíos
       if (userArea !== 'admin' && userArea !== 'envios') {
-        return data.filter((repo: any) => repo.status !== 'completado' && repo.status !== 'eliminado');
+        return data.filter((repo: any) => 
+          repo.status !== 'completado' && 
+          repo.status !== 'eliminado' && 
+          repo.status !== 'cancelado'
+        );
       }
 
       return data;
@@ -166,13 +178,49 @@ export function RepositionList({ userArea }: { userArea: string }) {
     }
   });
 
-  const deleteMutation = useMutation({
+  const cancelMutation = useMutation({
     mutationFn: async ({ repositionId, reason }: { repositionId: number, reason: string }) => {
-      console.log('Deleting reposition:', repositionId, 'with reason:', reason);
+      console.log('Cancelling reposition:', repositionId, 'with reason:', reason);
+      const response = await fetch(`/api/repositions/${repositionId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+
+      const data = await response.json();
+      console.log('Cancel response:', response.status, data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to cancel reposition');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['repositions'] });
+      Swal.fire({
+        title: '¡Cancelada!',
+        text: 'Reposición cancelada correctamente',
+        icon: 'success',
+        confirmButtonColor: '#8B5CF6'
+      });
+    },
+    onError: (error: Error) => {
+      console.error('Cancel error:', error);
+      Swal.fire({
+        title: 'Error',
+        text: error.message || 'No se pudo cancelar la reposición',
+        icon: 'error',
+        confirmButtonColor: '#8B5CF6'
+      });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ repositionId }: { repositionId: number }) => {
+      console.log('Deleting reposition:', repositionId);
       const response = await fetch(`/api/repositions/${repositionId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason }),
       });
 
       const data = await response.json();
@@ -471,21 +519,21 @@ export function RepositionList({ userArea }: { userArea: string }) {
     }
   };
 
-  const handleDelete = async (repositionId: number) => {
+  const handleCancel = async (repositionId: number) => {
     const { value: reason } = await Swal.fire({
-      title: '¿Estás seguro?',
-      text: 'Esta acción eliminará la reposición permanentemente',
+      title: '¿Cancelar reposición?',
+      text: 'Esta acción cancelará la reposición pero se mantendrá en el historial',
       input: 'textarea',
-      inputPlaceholder: 'Describe el motivo por el cual esta reposición ya no es necesaria *',
+      inputPlaceholder: 'Describe el motivo por el cual se cancela esta reposición *',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#DC2626',
+      confirmButtonColor: '#F59E0B',
       cancelButtonColor: '#6B7280',
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: 'Sí, cancelar',
+      cancelButtonText: 'No cancelar',
       inputValidator: (value) => {
         if (!value || value.trim().length === 0) {
-          return 'Debes proporcionar un motivo para la eliminación';
+          return 'Debes proporcionar un motivo para la cancelación';
         }
         if (value.trim().length < 10) {
           return 'El motivo debe tener al menos 10 caracteres';
@@ -494,7 +542,24 @@ export function RepositionList({ userArea }: { userArea: string }) {
     });
 
     if (reason !== undefined && reason.trim().length > 0) {
-      deleteMutation.mutate({ repositionId, reason: reason.trim() });
+      cancelMutation.mutate({ repositionId, reason: reason.trim() });
+    }
+  };
+
+  const handleDelete = async (repositionId: number) => {
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará la reposición permanentemente',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#DC2626',
+      cancelButtonColor: '#6B7280',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+      deleteMutation.mutate({ repositionId });
     }
   };
 
@@ -920,16 +985,30 @@ export function RepositionList({ userArea }: { userArea: string }) {
                       </>
                     )}
 
-                    {reposition.status !== 'completado' && reposition.status !== 'eliminado' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-purple-600 hover:bg-purple-50"
-                        onClick={() => handleComplete(reposition.id)}
-                      >
-                        <Flag className="w-4 h-4 mr-2" />
-                        {userArea === 'admin' || userArea === 'envios' ? 'Finalizar' : 'Solicitar Finalización'}
-                      </Button>
+                    {reposition.status !== 'completado' && reposition.status !== 'eliminado' && reposition.status !== 'cancelado' && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-purple-600 hover:bg-purple-50"
+                          onClick={() => handleComplete(reposition.id)}
+                        >
+                          <Flag className="w-4 h-4 mr-2" />
+                          {userArea === 'admin' || userArea === 'envios' ? 'Finalizar' : 'Solicitar Finalización'}
+                        </Button>
+
+                        {(userArea === 'admin' || userArea === 'envios') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-orange-600 hover:bg-orange-50"
+                            onClick={() => handleCancel(reposition.id)}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Cancelar
+                          </Button>
+                        )}
+                      </>
                     )}
 
                     {(userArea === 'admin' || userArea === 'envios') && 

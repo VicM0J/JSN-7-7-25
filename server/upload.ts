@@ -26,14 +26,26 @@ export const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     // Allow common document types
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|txt/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    const allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.gif', '.txt'];
+    const allowedMimeTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'text/plain'
+    ];
 
-    if (mimetype && extname) {
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    const isValidExtension = allowedExtensions.includes(fileExtension);
+    const isValidMimeType = allowedMimeTypes.includes(file.mimetype);
+
+    if (isValidExtension && isValidMimeType) {
       return cb(null, true);
     } else {
-      cb(new Error('Solo se permiten archivos de imagen y documentos'));
+      cb(new Error('Solo se permiten archivos PDF, DOC, DOCX, JPG, PNG, GIF y TXT'));
     }
   }
 });

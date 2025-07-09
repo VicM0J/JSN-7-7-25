@@ -1,12 +1,17 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type Order } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 
 type Area = 'corte' | 'bordado' | 'ensamble' | 'plancha' | 'calidad' | 'envios' | 'admin';
-import { Loader2, Package, MapPin, Calendar, User } from "lucide-react";
+import { Loader2, Package, MapPin, Calendar, User, Upload, FileText, Download } from "lucide-react";
 
 interface OrderDetailsModalProps {
   open: boolean;
@@ -15,20 +20,93 @@ interface OrderDetailsModalProps {
 }
 
 export function OrderDetailsModal({ open, onClose, orderId }: OrderDetailsModalProps) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: order, isLoading: isLoadingOrder } = useQuery<Order>({
     queryKey: ["/api/orders", orderId],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/orders/${orderId}`);
+      return res.json();
+    },
     enabled: !!orderId,
   });
 
   const { data: orderPieces = [], isLoading: isLoadingPieces } = useQuery<Array<{ id: number; area: Area; pieces: number }>>({
     queryKey: [`/api/orders/${orderId}/pieces`],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/orders/${orderId}/pieces`);
+      return res.json();
+    },
     enabled: !!orderId,
   });
 
   const { data: history = [], isLoading: isLoadingHistory } = useQuery<Array<any>>({
     queryKey: [`/api/orders/${orderId}/history`],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/orders/${orderId}/history`);
+      return res.json();
+    },
     enabled: !!orderId,
   });
+
+  const { data: documents = [], isLoading: isLoadingDocuments } = useQuery<Array<any>>({
+    queryKey: [`/api/orders/${orderId}/documents`],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/orders/${orderId}/documents`);
+      return res.json();
+    },
+    enabled: !!orderId,
+  });
+
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('document', file);
+      
+      const res = await fetch(`/api/orders/${orderId}/documents`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: 'Error al subir archivo' }));
+        throw new Error(error.message || 'Error al subir archivo');
+      }
+      
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Archivo subido",
+        description: "El documento se ha subido correctamente",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
+      setSelectedFile(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error al subir archivo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUpload = () => {
+    if (selectedFile) {
+      uploadDocumentMutation.mutate(selectedFile);
+    }
+  };
 
   const getAreaDisplayName = (area: Area) => {
     const names: Record<Area, string> = {
@@ -66,7 +144,7 @@ export function OrderDetailsModal({ open, onClose, orderId }: OrderDetailsModalP
     });
   };
 
-  const isLoading = isLoadingOrder || isLoadingPieces || isLoadingHistory;
+  const isLoading = isLoadingOrder || isLoadingPieces || isLoadingHistory || isLoadingDocuments;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -151,6 +229,75 @@ export function OrderDetailsModal({ open, onClose, orderId }: OrderDetailsModalP
                 ) : (
                   <p className="text-gray-500 text-center py-4">No hay distribución de piezas disponible</p>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Documentos */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <FileText className="h-4 w-4" />
+                  <span>Documentos</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Upload Section */}
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <div className="flex items-center space-x-4">
+                      <Input
+                        type="file"
+                        onChange={handleFileSelect}
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={handleUpload}
+                        disabled={!selectedFile || uploadDocumentMutation.isPending}
+                        className="flex items-center space-x-2"
+                      >
+                        <Upload className="h-4 w-4" />
+                        <span>
+                          {uploadDocumentMutation.isPending ? 'Subiendo...' : 'Subir'}
+                        </span>
+                      </Button>
+                    </div>
+                    {selectedFile && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        Archivo seleccionado: {selectedFile.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Documents List */}
+                  {documents.length > 0 ? (
+                    <div className="space-y-2">
+                      {documents.map((doc: any) => (
+                        <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <FileText className="h-5 w-5 text-gray-600" />
+                            <div>
+                              <p className="font-medium">{doc.filename}</p>
+                              <p className="text-sm text-gray-500">
+                                Subido el {formatDate(doc.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`/uploads/${doc.filename}`, '_blank')}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Descargar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-4">No hay documentos disponibles</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
