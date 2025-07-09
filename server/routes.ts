@@ -446,12 +446,71 @@ function registerAdminRoutes(app: Express) {
       const { userId, newPassword } = req.body;
       if (!userId || !newPassword) return res.status(400).json({ message: "Faltan campos requeridos" });
 
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const { hashPassword } = await import('./auth');
+      const hashedPassword = await hashPassword(newPassword);
       await storage.resetUserPassword(userId, hashedPassword);
       res.json({ message: "Contraseña restablecida correctamente" });
     } catch (error) {
       console.error('Reset password error:', error);
       res.status(500).json({ message: "Error al restablecer la contraseña" });
+    }
+  });
+
+  router.post("/users", async (req, res) => {
+    try {
+      const { name, username, area, password } = req.body;
+
+      console.log('Create user request:', { name, username, area, hasPassword: !!password });
+
+      if (!name || !username || !area || !password) {
+        console.log('Missing required fields');
+        return res.status(400).json({ message: "Todos los campos son requeridos" });
+      }
+
+      // Verificar si el username ya existe
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        console.log('Username already exists');
+        return res.status(400).json({ message: "El nombre de usuario ya está en uso" });
+      }
+
+      // Importar la función hashPassword del módulo auth
+      const { hashPassword } = await import('./auth');
+      const hashedPassword = await hashPassword(password);
+
+      const userData = {
+        name: name.trim(),
+        username: username.trim(),
+        area,
+        password: hashedPassword
+      };
+
+      const user = await storage.createUser(userData);
+      console.log('User created successfully:', user.id);
+      res.status(201).json({ message: "Usuario creado correctamente", user });
+    } catch (error) {
+      console.error('Create user error:', error);
+      res.status(500).json({ message: "Error al crear el usuario", error: error.message });
+    }
+  });
+
+  router.post("/clear-database", async (req, res) => {
+    try {
+      await storage.clearEntireDatabase();
+      res.json({ message: "Base de datos limpiada correctamente" });
+    } catch (error) {
+      console.error('Clear database error:', error);
+      res.status(500).json({ message: "Error al limpiar la base de datos" });
+    }
+  });
+
+  router.post("/reset-user-sequence", async (req, res) => {
+    try {
+      await storage.resetUserSequence();
+      res.json({ message: "Secuencia de usuarios reiniciada correctamente" });
+    } catch (error) {
+      console.error('Reset user sequence error:', error);
+      res.status(500).json({ message: "Error al reiniciar secuencia de usuarios" });
     }
   });
 
@@ -490,7 +549,8 @@ function registerAdminRoutes(app: Express) {
 
       // Si se proporciona nueva contraseña, hashearla
       if (newPassword && newPassword.trim() !== "") {
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const { hashPassword } = await import('./auth');
+        const hashedPassword = await hashPassword(newPassword);
         updateData.password = hashedPassword;
         console.log('Password will be updated');
       }
@@ -744,7 +804,7 @@ function registerRepositionRoutes(app: Express) {
       if (isNaN(repositionId)) {
         return res.status(400).json({ message: "ID de reposición inválido" });
       }
-      
+
       const pieces = await storage.getRepositionPieces(repositionId);
       console.log('Pieces from endpoint:', pieces);
       res.json(pieces);
@@ -1531,12 +1591,12 @@ function registerMetricsRoutes(app: Express) {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Autenticación requerida" });
     }
-    
+
     const user = req.user!;
     if (user.area !== 'admin') {
       return res.status(403).json({ message: "Acceso restringido a administradores" });
     }
-    
+
     next();
   });
 
@@ -1584,7 +1644,7 @@ function registerMetricsRoutes(app: Express) {
   router.get("/export/:type", async (req, res) => {
     try {
       const { type } = req.params;
-      const { month, year } = req.query;
+      const { month, year} = req.query;
 
       let buffer;
       let filename;

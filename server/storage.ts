@@ -205,6 +205,8 @@ export interface IStorage {
   getOrderDocuments(orderId: number): Promise<any[]>;
 
   getRepositionPieces(repositionId: number): Promise<any[]>;
+  async clearEntireDatabase(): Promise<void>;
+  async resetUserSequence(): Promise<void>;
 }
 
 export interface LocalRepositionTimer {
@@ -2490,6 +2492,50 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
 
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);
+  }
+
+  async clearEntireDatabase(): Promise<void> {
+    console.log('Starting complete database clear...');
+
+    try {
+      // Eliminar en orden específico debido a foreign keys
+      await db.delete(documents);
+      await db.delete(repositionTimers);
+      await db.delete(repositionTransfers);
+      await db.delete(repositionHistory);
+      await db.delete(repositionMaterials);
+      await db.delete(repositionContrastFabrics);
+      await db.delete(repositionProducts);
+      await db.delete(repositionPieces);
+      await db.delete(repositions);
+
+      await db.delete(agendaEvents);
+      await db.delete(adminPasswords);
+
+      await db.delete(notifications);
+      await db.delete(transfers);
+      await db.delete(orderHistory);
+      await db.delete(orderPieces);
+      await db.delete(orders);
+
+      // Mantener solo el usuario admin
+      await db.delete(users).where(ne(users.area, 'admin'));
+
+      console.log('Database cleared successfully');
+    } catch (error) {
+      console.error('Error clearing database:', error);
+      throw new Error('Error al limpiar la base de datos: ' + error.message);
+    }
+  }
+
+  async resetUserSequence(): Promise<void> {
+    try {
+      await db.execute(sql`ALTER SEQUENCE users_id_seq RESTART WITH 1;`);
+      console.log('User ID sequence reset successfully');
+    } catch (error) {
+      console.error('Error resetting user ID sequence:', error);
+      throw new Error('Error al reiniciar la secuencia de ID de usuario: ' + error.message);
+    }
   }
 }
 

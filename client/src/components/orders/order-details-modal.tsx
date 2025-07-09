@@ -286,7 +286,7 @@ export function OrderDetailsModal({ open, onClose, orderId }: OrderDetailsModalP
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(`/uploads/${doc.filename}`, '_blank')}
+                            onClick={() => window.open(`/api/files/${doc.filename}`, '_blank')}
                           >
                             <Download className="h-4 w-4 mr-2" />
                             Descargar
