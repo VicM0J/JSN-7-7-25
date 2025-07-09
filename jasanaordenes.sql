@@ -39,7 +39,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transfer_status') THEN
-        CREATE TYPE transfer_status AS ENUM ('pending', 'approved', 'rejected');
+        CREATE TYPE transfer_status AS ENUM ('pending', 'accepted', 'rejected');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type') THEN
