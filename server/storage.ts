@@ -2093,99 +2093,152 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
   // Funciones de métricas
   async getMonthlyMetrics(month: number, year: number): Promise<any> {
     console.log(`Getting monthly metrics for ${month}/${year}`);
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59);
     
-    console.log('Date range:', startDate, 'to', endDate);
+    // Ajustar la fecha para considerar la zona horaria de México
+    const startDate = new Date(year, month, 1);
+    startDate.setHours(6, 0, 0, 0); // UTC+6 para México
+    
+    const endDate = new Date(year, month + 1, 0);
+    endDate.setHours(29, 59, 59, 999); // Fin del día en UTC
+    
+    console.log('Date range:', startDate.toISOString(), 'to', endDate.toISOString());
 
-    // Reposiciones del mes por área
-    const repositionsQuery = await db.select({
-      area: repositions.solicitanteArea,
-      count: count(),
-      pieces: repositions.id // placeholder, calcularemos después
-    })
-    .from(repositions)
-    .where(and(
-      gte(repositions.createdAt, startDate),
-      lte(repositions.createdAt, endDate),
-      ne(repositions.status, 'eliminado' as RepositionStatus)
-    ))
-    .groupBy(repositions.solicitanteArea);
-
-    console.log('Repositions query result:', repositionsQuery);
-
-    const totalRepositions = repositionsQuery.reduce((sum, item) => sum + item.count, 0);
-    console.log('Total repositions:', totalRepositions);
-
-    // Si no hay reposiciones, retornar datos vacíos
-    if (totalRepositions === 0) {
-      return {
-        byArea: [],
-        byCause: [],
-        total: 0
-      };
-    }
-
-    // Calcular piezas por área y porcentajes
-    const byArea = await Promise.all(repositionsQuery.map(async (item) => {
-      const areaPieces = await db.select({
-        totalPieces: count()
+    try {
+      // Reposiciones del mes por área y tipo
+      const repositionsQuery = await db.select({
+        area: repositions.solicitanteArea,
+        type: repositions.type,
+        count: sql<number>`COUNT(*)::int`,
       })
-      .from(repositionPieces)
-      .innerJoin(repositions, eq(repositionPieces.repositionId, repositions.id))
+      .from(repositions)
       .where(and(
-        eq(repositions.solicitanteArea, item.area),
         gte(repositions.createdAt, startDate),
         lte(repositions.createdAt, endDate),
         ne(repositions.status, 'eliminado' as RepositionStatus)
-      ));
+      ))
+      .groupBy(repositions.solicitanteArea, repositions.type);
 
-      const pieces = areaPieces[0]?.totalPieces || 0;
-      const percentage = totalRepositions > 0 ? Math.round((item.count / totalRepositions) * 100) : 0;
+    console.log('Repositions query result:', repositionsQuery);
+
+      const totalRepositions = repositionsQuery.reduce((sum, item) => sum + item.count, 0);
+      console.log('Total repositions:', totalRepositions);
+
+      // Si no hay reposiciones, retornar datos vacíos
+      if (totalRepositions === 0) {
+        return {
+          byArea: [],
+          byAreaAndType: [],
+          byCause: [],
+          total: 0
+        };
+      }
+
+      // Agrupar por área sumando todos los tipos
+      const areaMap = new Map<string, { count: number, reposiciones: number, reprocesos: number }>();
+      
+      repositionsQuery.forEach(item => {
+        const area = item.area || 'Sin área';
+        if (!areaMap.has(area)) {
+          areaMap.set(area, { count: 0, reposiciones: 0, reprocesos: 0 });
+        }
+        const areaData = areaMap.get(area)!;
+        areaData.count += item.count;
+        
+        if (item.type === 'repocision') {
+          areaData.reposiciones += item.count;
+        } else if (item.type === 'reproceso') {
+          areaData.reprocesos += item.count;
+        }
+      });
+
+      // Calcular piezas por área usando un join directo sin contar repositions.id
+      const byArea = await Promise.all(Array.from(areaMap.entries()).map(async ([area, data]) => {
+        try {
+          // Contar piezas directamente sin referencias a repositions.id en el SELECT
+          const areaPiecesQuery = await db.select({
+            totalPieces: sql<number>`COUNT(rp.id)::int`
+          })
+          .from(repositionPieces.alias('rp'))
+          .innerJoin(repositions.alias('r'), eq(sql`rp.reposition_id`, sql`r.id`))
+          .where(and(
+            eq(sql`r.solicitante_area`, area),
+            gte(sql`r.created_at`, startDate),
+            lte(sql`r.created_at`, endDate),
+            ne(sql`r.status`, 'eliminado')
+          ));
+
+          const pieces = areaPiecesQuery[0]?.totalPieces || 0;
+          const percentage = totalRepositions > 0 ? Math.round((data.count / totalRepositions) * 100) : 0;
+
+          return {
+            area,
+            count: data.count,
+            reposiciones: data.reposiciones,
+            reprocesos: data.reprocesos,
+            pieces,
+            percentage
+          };
+        } catch (error) {
+          console.error(`Error calculating pieces for area ${area}:`, error);
+          return {
+            area,
+            count: data.count,
+            reposiciones: data.reposiciones,
+            reprocesos: data.reprocesos,
+            pieces: 0,
+            percentage: totalRepositions > 0 ? Math.round((data.count / totalRepositions) * 100) : 0
+          };
+        }
+      }));
+
+      // Datos detallados por área y tipo para gráficos específicos
+      const byAreaAndType = repositionsQuery.map(item => ({
+        area: item.area || 'Sin área',
+        type: item.type,
+        count: item.count,
+        percentage: totalRepositions > 0 ? Math.round((item.count / totalRepositions) * 100) : 0
+      }));
+
+      // Causas de daño del mes
+      const causesQuery = await db.select({
+        cause: repositions.causanteDano,
+        count: sql<number>`COUNT(*)::int`
+      })
+      .from(repositions)
+      .where(and(
+        gte(repositions.createdAt, startDate),
+        lte(repositions.createdAt, endDate),
+        ne(repositions.status, 'eliminado' as RepositionStatus),
+        isNotNull(repositions.causanteDano)
+      ))
+      .groupBy(repositions.causanteDano);
+
+      const totalCauses = causesQuery.reduce((sum, item) => sum + item.count, 0);
+      const byCause = causesQuery.map(item => ({
+        cause: item.cause || 'Sin especificar',
+        count: item.count,
+        percentage: totalCauses > 0 ? Math.round((item.count / totalCauses) * 100) : 0
+      }));
+
+      console.log('Final metrics result:', { byArea, byAreaAndType, byCause, total: totalRepositions });
 
       return {
-        area: item.area || 'Sin área',
-        count: item.count,
-        pieces,
-        percentage
+        byArea,
+        byAreaAndType,
+        byCause,
+        total: totalRepositions
       };
-    }));
-
-    // Causas de daño del mes
-    const causesQuery = await db.select({
-      cause: repositions.causanteDano,
-      count: count()
-    })
-    .from(repositions)
-    .where(and(
-      gte(repositions.createdAt, startDate),
-      lte(repositions.createdAt, endDate),
-      ne(repositions.status, 'eliminado' as RepositionStatus),
-      isNotNull(repositions.causanteDano)
-    ))
-    .groupBy(repositions.causanteDano);
-
-    const totalCauses = causesQuery.reduce((sum, item) => sum + item.count, 0);
-    const byCause = causesQuery.map(item => ({
-      cause: item.cause || 'Sin especificar',
-      count: item.count,
-      percentage: totalCauses > 0 ? Math.round((item.count / totalCauses) * 100) : 0
-    }));
-
-    console.log('Final metrics result:', { byArea, byCause, total: totalRepositions });
-
-    return {
-      byArea,
-      byCause,
-      total: totalRepositions
-    };
+    } catch (error) {
+      console.error('Get monthly metrics error:', error);
+      throw new Error('Error al obtener métricas mensuales: ' + error.message);
+    }
   }
 
   async getOverallMetrics(): Promise<any> {
     console.log('Getting overall metrics...');
     
     // Total de reposiciones
-    const totalRepositionsQuery = await db.select({ count: count() })
+    const totalRepositionsQuery = await db.select({ count: sql<number>`COUNT(*)::int` })
       .from(repositions)
       .where(ne(repositions.status, 'eliminado' as RepositionStatus));
 
@@ -2193,7 +2246,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
     console.log('Total repositions:', totalRepositions);
 
     // Total de piezas
-    const totalPiecesQuery = await db.select({ count: count() })
+    const totalPiecesQuery = await db.select({ count: sql<number>`COUNT(*)::int` })
       .from(repositionPieces)
       .innerJoin(repositions, eq(repositionPieces.repositionId, repositions.id))
       .where(ne(repositions.status, 'eliminado' as RepositionStatus));
@@ -2206,7 +2259,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
     if (totalRepositions > 0) {
       const mostActiveAreaQuery = await db.select({
         area: repositions.solicitanteArea,
-        count: count()
+        count: sql<number>`COUNT(*)::int`
       })
       .from(repositions)
       .where(and(
@@ -2214,7 +2267,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
         isNotNull(repositions.solicitanteArea)
       ))
       .groupBy(repositions.solicitanteArea)
-      .orderBy(desc(count()))
+      .orderBy(desc(sql<number>`COUNT(*)::int`))
       .limit(1);
 
       mostActiveArea = mostActiveAreaQuery[0]?.area || 'N/A';
@@ -2225,7 +2278,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-    const monthlyAvgQuery = await db.select({ count: count() })
+    const monthlyAvgQuery = await db.select({ count: sql<number>`COUNT(*)::int` })
       .from(repositions)
       .where(and(
         gte(repositions.createdAt, twelveMonthsAgo),
@@ -2253,7 +2306,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
     const requestsQuery = await db.select({
       noSolicitud: repositions.noSolicitud,
       type: repositions.type,
-      count: count()
+      count: sql<number>`COUNT(*)::int`
     })
     .from(repositions)
     .where(and(
@@ -2321,13 +2374,22 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
     const worksheet1 = workbook.addWorksheet('Por Área');
     worksheet1.columns = [
       { header: 'Área', key: 'area', width: 15 },
-      { header: 'Reposiciones', key: 'count', width: 15 },
+      { header: 'Total', key: 'count', width: 15 },
+      { header: 'Reposiciones', key: 'reposiciones', width: 15 },
+      { header: 'Reprocesos', key: 'reprocesos', width: 15 },
       { header: 'Piezas', key: 'pieces', width: 15 },
-      { header: 'Porcentaje', key: 'percentage', width: 15 }
+      { header: 'Porcentaje del Total', key: 'percentage', width: 18 }
     ];
 
     metrics.byArea.forEach((item: any) => {
-      worksheet1.addRow(item);
+      worksheet1.addRow({
+        area: item.area,
+        count: item.count,
+        reposiciones: item.reposiciones || 0,
+        reprocesos: item.reprocesos || 0,
+        pieces: item.pieces,
+        percentage: `${item.percentage}%`
+      });
     });
 
     // Hoja 2: Causas de daño

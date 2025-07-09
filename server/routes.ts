@@ -1508,13 +1508,22 @@ function registerAlmacenRoutes(app: Express) {
 function registerMetricsRoutes(app: Express) {
   const router = Router();
 
+  // Middleware para verificar autenticación y permisos de admin
+  router.use((req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Autenticación requerida" });
+    }
+    
+    const user = req.user!;
+    if (user.area !== 'admin') {
+      return res.status(403).json({ message: "Acceso restringido a administradores" });
+    }
+    
+    next();
+  });
+
   // Métricas mensuales
   router.get("/monthly", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') return res.status(403).json({ message: "Acceso restringido a administradores" });
-
     try {
       const { month, year } = req.query;
       console.log('Getting monthly metrics for:', month, year);
@@ -1529,11 +1538,6 @@ function registerMetricsRoutes(app: Express) {
 
   // Métricas generales
   router.get("/overall", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') return res.status(403).json({ message: "Acceso restringido a administradores" });
-
     try {
       console.log('Getting overall metrics');
       const metrics = await storage.getOverallMetrics();
@@ -1547,11 +1551,6 @@ function registerMetricsRoutes(app: Express) {
 
   // Análisis por número de solicitud
   router.get("/requests", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') return res.status(403).json({ message: "Acceso restringido a administradores" });
-
     try {
       console.log('Getting request analysis');
       const analysis = await storage.getRequestAnalysis();
@@ -1565,11 +1564,6 @@ function registerMetricsRoutes(app: Express) {
 
   // Exportar métricas
   router.get("/export/:type", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') return res.status(403).json({ message: "Acceso restringido a administradores" });
-
     try {
       const { type } = req.params;
       const { month, year } = req.query;
@@ -1600,122 +1594,6 @@ function registerMetricsRoutes(app: Express) {
     } catch (error) {
       console.error('Export metrics error:', error);
       res.status(500).json({ message: "Error al exportar métricas" });
-    }
-  });
-
-  app.use("/api/metrics", router);
-
-  // Rutas de métricas (solo para admin)
-  router.get("/metrics/monthly/:month/:year", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') {
-      return res.status(403).json({ message: "Acceso denegado. Solo administradores pueden ver métricas." });
-    }
-
-    try {
-      const { month, year } = req.params;
-      const metrics = await storage.getMonthlyMetrics(parseInt(month), parseInt(year));
-      res.json(metrics);
-    } catch (error) {
-      console.error('Get monthly metrics error:', error);
-      res.status(500).json({ message: "Error al obtener métricas mensuales" });
-    }
-  });
-
-  router.get("/metrics/overall", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') {
-      return res.status(403).json({ message: "Acceso denegado. Solo administradores pueden ver métricas." });
-    }
-
-    try {
-      const metrics = await storage.getOverallMetrics();
-      res.json(metrics);
-    } catch (error) {
-      console.error('Get overall metrics error:', error);
-      res.status(500).json({ message: "Error al obtener métricas generales" });
-    }
-  });
-
-  router.get("/metrics/requests", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') {
-      return res.status(403).json({ message: "Acceso denegado. Solo administradores pueden ver métricas." });
-    }
-
-    try {
-      const analysis = await storage.getRequestAnalysis();
-      res.json(analysis);
-    } catch (error) {
-      console.error('Get request analysis error:', error);
-      res.status(500).json({ message: "Error al obtener análisis de solicitudes" });
-    }
-  });
-
-  router.get("/metrics/export/monthly/:month/:year", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') {
-      return res.status(403).json({ message: "Acceso denegado. Solo administradores pueden exportar métricas." });
-    }
-
-    try {
-      const { month, year } = req.params;
-      const buffer = await storage.exportMonthlyMetrics(parseInt(month), parseInt(year));
-
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=metricas-${month}-${year}.xlsx`);
-      res.send(buffer);
-    } catch (error) {
-      console.error('Export monthly metrics error:', error);
-      res.status(500).json({ message: "Error al exportar métricas mensuales" });
-    }
-  });
-
-  router.get("/metrics/export/overall", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') {
-      return res.status(403).json({ message: "Acceso denegado. Solo administradores pueden exportar métricas." });
-    }
-
-    try {
-      const buffer = await storage.exportOverallMetrics();
-
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename=metricas-generales.xlsx');
-      res.send(buffer);
-    } catch (error) {
-      console.error('Export overall metrics error:', error);
-      res.status(500).json({ message: "Error al exportar métricas generales" });
-    }
-  });
-
-  router.get("/metrics/export/requests", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
-    const user = req.user!;
-    if (user.area !== 'admin') {
-      return res.status(403).json({ message: "Acceso denegado. Solo administradores pueden exportar métricas." });
-    }
-
-    try {
-      const buffer = await storage.exportRequestAnalysis();
-
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename=analisis-solicitudes.xlsx');
-      res.send(buffer);
-    } catch (error) {
-      console.error('Export request analysis error:', error);
-      res.status(500).json({ message: "Error al exportar análisis de solicitudes" });
     }
   });
 
