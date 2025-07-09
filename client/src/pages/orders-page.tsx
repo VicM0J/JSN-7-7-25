@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Eye, ArrowRight, History, Plus, CheckCircle, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Search, Eye, ArrowRight, History, Plus, CheckCircle, Trash2, Pause, Play } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +18,7 @@ import { type Order, type Area } from "@shared/schema";
 import { TransferModal } from "@/components/orders/transfer-modal";
 import { OrderHistoryModal } from "@/components/orders/order-history-modal";
 import { OrderDetailsModal } from "@/components/orders/order-details-modal";
+import Swal from 'sweetalert2';
 
 export default function OrdersPage() {
   const { user } = useAuth();
@@ -28,6 +32,9 @@ export default function OrdersPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [pauseDialog, setPauseDialog] = useState(false);
+  const [pauseReason, setPauseReason] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["/api/orders"],
@@ -75,10 +82,58 @@ export default function OrdersPage() {
     },
   });
 
+  const pauseOrderMutation = useMutation({
+    mutationFn: async ({ orderId, reason }: { orderId: number; reason: string }) => {
+      const res = await apiRequest("POST", `/api/orders/${orderId}/pause`, { reason });
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Pedido pausado",
+        description: "El pedido ha sido pausado correctamente",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      setPauseDialog(false);
+      setPauseReason("");
+      setSelectedOrder(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error al pausar pedido",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resumeOrderMutation = useMutation({
+    mutationFn: async (orderId: number) => {
+      const res = await apiRequest("POST", `/api/orders/${orderId}/resume`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      Swal.fire({
+        title: '¡Pedido reanudado!',
+        text: 'El pedido ha sido reanudado correctamente.',
+        icon: 'success',
+        confirmButtonColor: '#10B981'
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error al reanudar pedido",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const canCreateOrders = user?.area === 'corte' || user?.area === 'admin';
 
   const getAreaBadgeColor = (area: Area) => {
     const colors: Record<Area, string> = {
+      patronaje: "bg-amber-100 text-amber-800",
       corte: "bg-green-100 text-green-800",
       bordado: "bg-blue-100 text-blue-800",
       ensamble: "bg-purple-100 text-purple-800",
@@ -88,25 +143,30 @@ export default function OrdersPage() {
       almacen: "bg-indigo-100 text-indigo-800",
       admin: "bg-gray-100 text-gray-800",
       diseño: "bg-cyan-100 text-cyan-800",
+      operaciones: "bg-teal-100 text-teal-800",
     };
     return colors[area] || "bg-gray-100 text-gray-800";
   };
 
   const getStatusBadgeColor = (status: string) => {
-    return status === 'completed' 
-      ? "bg-green-100 text-green-800"
-      : "bg-yellow-100 text-yellow-800";
+    if (status === 'completed') return "bg-green-100 text-green-800";
+    if (status === 'paused') return "bg-red-100 text-red-800";
+    return "bg-yellow-100 text-yellow-800";
   };
 
   const getAreaDisplayName = (area: Area) => {
     const names: Record<Area, string> = {
+      patronaje: 'Patronaje',
       corte: 'Corte',
       bordado: 'Bordado',
       ensamble: 'Ensamble',
       plancha: 'Plancha/Empaque',
       calidad: 'Calidad',
       envios: 'Envíos',
-      admin: 'Admin'
+      almacen: 'Almacén',
+      admin: 'Admin',
+      diseño: 'Diseño',
+      operaciones: 'Operaciones'
     };
     return names[area] || area;
   };
@@ -136,6 +196,37 @@ export default function OrdersPage() {
   const handleViewDetails = (orderId: number) => {
     setSelectedOrderId(orderId);
     setShowDetails(true);
+  };
+
+  const handlePauseOrder = (order: Order) => {
+    setSelectedOrder(order);
+    setPauseDialog(true);
+  };
+
+  const handleConfirmPause = () => {
+    if (selectedOrder && pauseReason.trim()) {
+      pauseOrderMutation.mutate({ 
+        orderId: selectedOrder.id, 
+        reason: pauseReason.trim() 
+      });
+    }
+  };
+
+  const handleResumeOrder = (orderId: number) => {
+    Swal.fire({
+      title: '¿Reanudar pedido?',
+      text: 'El pedido volverá a estar activo y podrá continuar su proceso.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10B981',
+      cancelButtonColor: '#EF4444',
+      confirmButtonText: 'Sí, reanudar',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        resumeOrderMutation.mutate(orderId);
+      }
+    });
   };
 
   return (
@@ -174,6 +265,7 @@ export default function OrdersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las Áreas</SelectItem>
+                <SelectItem value="patronaje">Patronaje</SelectItem>
                 <SelectItem value="corte">Corte</SelectItem>
                 <SelectItem value="bordado">Bordado</SelectItem>
                 <SelectItem value="ensamble">Ensamble</SelectItem>
@@ -190,6 +282,7 @@ export default function OrdersPage() {
               <SelectContent>
                 <SelectItem value="all">Todos los Estados</SelectItem>
                 <SelectItem value="active">En Proceso</SelectItem>
+                <SelectItem value="paused">Pausados</SelectItem>
                 <SelectItem value="completed">Finalizados</SelectItem>
               </SelectContent>
             </Select>
@@ -246,65 +339,104 @@ export default function OrdersPage() {
                       <TableCell>{order.totalPiezas}</TableCell>
                       <TableCell>
                         <Badge className={getStatusBadgeColor(order.status)}>
-                          {order.status === 'completed' ? 'Finalizado' : 'En Proceso'}
+                          {order.status === 'completed' ? 'Finalizado' : 
+                           order.status === 'paused' ? 'Pausado' : 'En Proceso'}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-1">
                           <Button 
-                            variant="ghost" 
+                            variant="outline" 
                             size="sm" 
                             title="Ver detalles"
                             onClick={() => handleViewDetails(order.id)}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
                           
                           {order.status === 'active' && (
                             <Button 
-                              variant="ghost" 
+                              variant="outline" 
                               size="sm"
                               onClick={() => handleTransferOrder(order.id)}
                               title="Transferir"
+                              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200"
                             >
                               <ArrowRight className="h-4 w-4" />
+                            </Button>
+                          )}
+
+                          {order.currentArea === user?.area && order.status === 'active' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handlePauseOrder(order)}
+                              title="Pausar pedido"
+                              className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200"
+                            >
+                              <Pause className="h-4 w-4" />
+                            </Button>
+                          )}
+
+                          {order.currentArea === user?.area && order.status === 'paused' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleResumeOrder(order.id)}
+                              title="Reanudar pedido"
+                              className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                            >
+                              <Play className="h-4 w-4" />
                             </Button>
                           )}
                           
                           {user?.area === 'envios' && order.status === 'active' && (
                             <Button 
-                              variant="ghost" 
+                              variant="outline" 
                               size="sm"
                               onClick={() => completeOrderMutation.mutate(order.id)}
                               disabled={completeOrderMutation.isPending}
                               title="Finalizar pedido"
-                              className="text-green-600 hover:text-green-700"
+                              className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
                             >
                               <CheckCircle className="h-4 w-4" />
                             </Button>
                           )}
                           
                           <Button 
-                            variant="ghost" 
+                            variant="outline" 
                             size="sm"
                             onClick={() => handleViewHistory(order.id)}
                             title="Ver historial"
+                            className="bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
                           >
                             <History className="h-4 w-4" />
                           </Button>
                           
                           {user?.area === 'admin' && (
                             <Button 
-                              variant="ghost" 
+                              variant="outline" 
                               size="sm"
                               onClick={() => {
-                                if (confirm('¿Estás seguro de que quieres eliminar este pedido? Esta acción no se puede deshacer.')) {
-                                  deleteOrderMutation.mutate(order.id);
-                                }
+                                Swal.fire({
+                                  title: '¿Eliminar pedido?',
+                                  text: 'Esta acción no se puede deshacer.',
+                                  icon: 'warning',
+                                  showCancelButton: true,
+                                  confirmButtonColor: '#EF4444',
+                                  cancelButtonColor: '#6B7280',
+                                  confirmButtonText: 'Sí, eliminar',
+                                  cancelButtonText: 'Cancelar'
+                                }).then((result) => {
+                                  if (result.isConfirmed) {
+                                    deleteOrderMutation.mutate(order.id);
+                                  }
+                                });
                               }}
                               disabled={deleteOrderMutation.isPending}
                               title="Eliminar pedido"
-                              className="text-red-600 hover:text-red-700"
+                              className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -350,6 +482,57 @@ export default function OrdersPage() {
             orderId={selectedOrderId}
           />
         )}
+
+        {/* Modal de Pausa */}
+        <Dialog open={pauseDialog} onOpenChange={(open) => {
+          setPauseDialog(open);
+          if (!open) {
+            setPauseReason('');
+            setSelectedOrder(null);
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Pausar Pedido</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Al pausar este pedido, se detendrá temporalmente su procesamiento. 
+                Debes explicar el motivo de la pausa.
+              </p>
+              {selectedOrder && (
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="font-medium">Pedido: {selectedOrder.folio}</p>
+                  <p className="text-sm text-gray-600">Cliente: {selectedOrder.clienteHotel}</p>
+                  <p className="text-sm text-gray-600">Modelo: {selectedOrder.modelo}</p>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="pause-reason">Motivo de la pausa *</Label>
+                <Textarea
+                  id="pause-reason"
+                  value={pauseReason}
+                  onChange={(e) => setPauseReason(e.target.value)}
+                  placeholder="Ejemplo: Falta de material específico, problema con maquinaria, etc..."
+                  required
+                  rows={4}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPauseDialog(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleConfirmPause}
+                disabled={!pauseReason.trim() || pauseReason.trim().length < 10 || pauseOrderMutation.isPending}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {pauseOrderMutation.isPending ? 'Pausando...' : 'Pausar Pedido'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

@@ -293,6 +293,63 @@ function registerOrderRoutes(app: Express) {
     }
   });
 
+    // Pause order
+  router.post("/:id/pause", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
+
+    try {
+      const orderId = parseInt(req.params.id);
+      const user = req.user!;
+      const { reason } = req.body;
+
+      if (!reason || reason.trim().length < 10) {
+        return res.status(400).json({ message: "El motivo debe tener al menos 10 caracteres" });
+      }
+
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Pedido no encontrado" });
+      }
+
+      // Solo el área que tiene el pedido puede pausarlo
+      if (order.currentArea !== user.area) {
+        return res.status(403).json({ message: "Solo el área que tiene el pedido puede pausarlo" });
+      }
+
+      await storage.pauseOrder(orderId, user.id, reason);
+      res.json({ message: "Pedido pausado correctamente" });
+    } catch (error) {
+      console.error('Pause order error:', error);
+      res.status(500).json({ message: "Error al pausar el pedido" });
+    }
+  });
+
+  // Resume order
+  router.post("/:id/resume", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
+
+    try {
+      const orderId = parseInt(req.params.id);
+      const user = req.user!;
+
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Pedido no encontrado" });
+      }
+
+      // Solo el área que tiene el pedido puede reanudarlo
+      if (order.currentArea !== user.area) {
+        return res.status(403).json({ message: "Solo el área que tiene el pedido puede reanudarlo" });
+      }
+
+      await storage.resumeOrder(orderId, user.id);
+      res.json({ message: "Pedido reanudado correctamente" });
+    } catch (error) {
+      console.error('Resume order error:', error);
+      res.status(500).json({ message: "Error al reanudar el pedido" });
+    }
+  });
+
   app.use("/api/orders", router);
 }
 
@@ -324,6 +381,23 @@ function registerTransferRoutes(app: Express) {
       });
 
       const transfer = await storage.createTransfer(validatedData, user.id);
+
+      // Agregar entrada detallada al historial con información de la ruta
+      await storage.addOrderHistory(
+        orderId,
+        'transfer_initiated',
+        `Transferencia iniciada: ${pieces} piezas de ${user.area} hacia ${toArea}${notes ? ` - Notas: ${notes}` : ''}`,
+        user.id,
+        {
+          fromArea: user.area,
+          toArea,
+          pieces: parseInt(pieces),
+          transferId: transfer.id,
+          notes,
+          route: `${user.area} → ${toArea}`
+        }
+      );
+
       res.status(201).json(transfer);
     } catch (error) {
       console.error('Create transfer error:', error);
@@ -1560,8 +1634,7 @@ function registerAlmacenRoutes(app: Express) {
         const notification = {
           type: 'notification',
           data: {
-            type: 'reposition_resumed',
-            message: `Reposición reanudada por almacén`,
+            type: 'reposition_resumed',            message: `Reposición reanudada por almacén`,
             repositionId: repositionId
           }
         };

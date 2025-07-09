@@ -8,7 +8,7 @@ export const areaEnum = pgEnum("area", ["patronaje", "corte", "bordado", "ensamb
 export const repositionTypeEnum = pgEnum("reposition_type", ["repocision", "reproceso"]);
 export const urgencyEnum = pgEnum("urgency", ["urgente", "intermedio", "poco_urgente"]);
 export const repositionStatusEnum = pgEnum("reposition_status", ["pendiente", "aprobado", "rechazado", "completado", "eliminado"]);
-export const orderStatusEnum = pgEnum("order_status", ["active", "completed"]);
+export const orderStatusEnum = pgEnum("order_status", ["active", "completed", "paused"]);
 export const transferStatusEnum = pgEnum("transfer_status", ["pending", "accepted", "rejected"]);
 export const notificationTypeEnum = pgEnum("notification_type", [
   "transfer_request", 

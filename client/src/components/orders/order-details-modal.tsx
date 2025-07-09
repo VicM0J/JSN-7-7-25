@@ -12,6 +12,7 @@ import { useState } from "react";
 
 type Area = 'corte' | 'bordado' | 'ensamble' | 'plancha' | 'calidad' | 'envios' | 'admin';
 import { Loader2, Package, MapPin, Calendar, User, Upload, FileText, Download } from "lucide-react";
+import { OrderRouteTracker } from "@/components/orders/order-route-tracker";
 
 interface OrderDetailsModalProps {
   open: boolean;
@@ -64,18 +65,18 @@ export function OrderDetailsModal({ open, onClose, orderId }: OrderDetailsModalP
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('document', file);
-      
+
       const res = await fetch(`/api/orders/${orderId}/documents`, {
         method: 'POST',
         body: formData,
         credentials: 'include'
       });
-      
+
       if (!res.ok) {
         const error = await res.json().catch(() => ({ message: 'Error al subir archivo' }));
         throw new Error(error.message || 'Error al subir archivo');
       }
-      
+
       return res.json();
     },
     onSuccess: () => {
@@ -189,12 +190,17 @@ export function OrderDetailsModal({ open, onClose, orderId }: OrderDetailsModalP
                     <div><span className="font-medium">Total Piezas:</span> {order?.totalPiezas}</div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center space-x-4 mt-4">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-medium">Estado:</span>
-                    <Badge className={order?.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                      {order?.status === 'completed' ? 'Finalizado' : 'En Proceso'}
+                    <Badge className={
+                      order?.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                      order?.status === 'paused' ? 'bg-red-100 text-red-800' : 
+                      'bg-yellow-100 text-yellow-800'
+                    }>
+                      {order?.status === 'completed' ? 'Finalizado' : 
+                       order?.status === 'paused' ? 'Pausado' : 'En Proceso'}
                     </Badge>
                   </div>
                   <div className="flex items-center space-x-2">

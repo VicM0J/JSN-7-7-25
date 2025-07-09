@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle, AlertTriangle, Package, FileText } from "lucide-react";
 import { type Order, type Area } from "@shared/schema";
 import Swal from 'sweetalert2';
 
@@ -32,11 +32,19 @@ export function TransferModal({ open, onClose, orderId }: TransferModalProps) {
 
   const { data: order } = useQuery<Order>({
     queryKey: ["/api/orders", orderId],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/orders/${orderId}`);
+      return res.json();
+    },
     enabled: !!orderId,
   });
 
   const { data: orderPieces = [], isLoading: isLoadingPieces } = useQuery({
     queryKey: [`/api/orders/${orderId}/pieces`],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/orders/${orderId}/pieces`);
+      return res.json();
+    },
     enabled: !!orderId,
   });
 
@@ -105,21 +113,11 @@ export function TransferModal({ open, onClose, orderId }: TransferModalProps) {
   const getNextAreas = (): Area[] => {
     if (!user) return [];
     
-    const areaFlow: Record<Area, Area[]> = {
-      patronaje: ['corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
-      corte: ['bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
-      bordado: ['ensamble', 'plancha', 'calidad', 'envios'],
-      ensamble: ['plancha', 'calidad', 'envios'],
-      plancha: ['calidad', 'envios'],
-      calidad: ['envios'],
-      operaciones: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
-      envios: [],
-      almacen: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
-      admin: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
-      diseño: ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios'],
-    };
+    // Todas las áreas disponibles para transferencia (incluye todas las áreas del sistema)
+    const allAreas: Area[] = ['patronaje', 'corte', 'bordado', 'ensamble', 'plancha', 'calidad', 'envios', 'operaciones', 'admin', 'almacen', 'diseño'];
     
-    return areaFlow[user.area] || [];
+    // Filtrar el área actual del usuario para evitar auto-transferencias
+    return allAreas.filter(area => area !== user.area);
   };
 
   const getAreaDisplayName = (area: Area) => {
@@ -151,106 +149,159 @@ export function TransferModal({ open, onClose, orderId }: TransferModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Transferir Pedido</DialogTitle>
+      <DialogContent className="max-w-lg w-[95vw] max-h-[95vh] overflow-y-auto bg-gradient-to-br from-white to-blue-50 border-2 border-blue-100 shadow-2xl mx-2">
+        <DialogHeader className="pb-4 sm:pb-6">
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center space-x-2 sm:space-x-3">
+            <div className="p-1.5 sm:p-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full">
+              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+            </div>
+            <span className="text-base sm:text-xl">Transferir Pedido</span>
+          </DialogTitle>
         </DialogHeader>
 
         {isLoadingPieces && (
-          <div className="flex items-center justify-center p-4">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Cargando piezas disponibles...</span>
+          <div className="flex items-center justify-center p-4 sm:p-8 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
+            <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-blue-500" />
+            <span className="ml-2 sm:ml-3 text-sm sm:text-lg text-gray-700">Cargando información...</span>
           </div>
         )}
         
         {!isLoadingPieces && (
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-            <div>
-              <Label>Folio del Pedido</Label>
-              <Input value={order?.folio || ""} readOnly className="bg-gray-50" />
-            </div>
+            <div className="space-y-6">
+              {/* Header del pedido */}
+              <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 sm:p-4 rounded-xl shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-semibold">Folio: {order?.folio || "Cargando..."}</h3>
+                    <p className="text-blue-100 text-xs sm:text-sm">ID: #{orderId}</p>
+                  </div>
+                  <div className="sm:text-right">
+                    <p className="text-blue-100 text-xs sm:text-sm">Cliente</p>
+                    <p className="font-medium text-sm sm:text-base truncate max-w-[200px] sm:max-w-none">{order?.clienteHotel || "Cargando..."}</p>
+                  </div>
+                </div>
+              </div>
             
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                <strong>Piezas disponibles en {user?.area ? getAreaDisplayName(user.area) : 'tu área'}:</strong> {getCurrentAreaPieces()}
-              </p>
-              <p className="text-xs text-blue-600 mt-1">
-                Total del pedido: {order?.totalPiezas || 0} piezas
-              </p>
-            </div>
+              {/* Información de piezas */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-3 sm:p-4 shadow-sm">
+                <div className="flex items-center space-x-2 sm:space-x-3 mb-3">
+                  <div className="p-1.5 sm:p-2 bg-green-500 rounded-full">
+                    <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                  </div>
+                  <h4 className="font-semibold text-green-800 text-sm sm:text-base">Resumen de Piezas</h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <p className="text-xs sm:text-sm text-green-700 mb-1">Disponibles en {user?.area ? getAreaDisplayName(user.area) : 'tu área'}</p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-800">{getCurrentAreaPieces()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm text-green-700 mb-1">Total del pedido</p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-800">{order?.totalPiezas || 0}</p>
+                  </div>
+                </div>
+              </div>
 
-            {getCurrentAreaPieces() === 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-800">
-                  No tienes piezas disponibles en tu área para este pedido.
-                </p>
-              </div>
-            )}
+              {getCurrentAreaPieces() === 0 && (
+                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-3 sm:p-4 shadow-sm">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="p-1.5 sm:p-2 bg-yellow-500 rounded-full flex-shrink-0">
+                      <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                    </div>
+                    <p className="text-yellow-800 font-medium text-sm sm:text-base">
+                      No tienes piezas disponibles en tu área para este pedido.
+                    </p>
+                  </div>
+                </div>
+              )}
             
-            <div>
-              <Label>Transferir a</Label>
-              <Select 
-                value={transferData.toArea} 
-                onValueChange={(value: Area) => setTransferData(prev => ({ ...prev, toArea: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar área..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {nextAreas.map(area => (
-                    <SelectItem key={area} value={area}>
-                      {getAreaDisplayName(area)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label>Cantidad a transferir</Label>
+              {/* Selector de área destino */}
               <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Input
-                    type="number"
-                    min="1"
-                    max={getCurrentAreaPieces()}
-                    value={transferData.pieces}
-                    onChange={(e) => setTransferData(prev => ({ ...prev, pieces: e.target.value }))}
-                    required
-                  />
-                  <span className="text-sm text-gray-500">
-                    de {getCurrentAreaPieces()} disponibles en {user?.area ? getAreaDisplayName(user.area) : ''}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-400">
-                  Total del pedido: {order?.totalPiezas || 0} piezas
+                <Label className="text-gray-700 font-medium flex items-center space-x-2 text-sm sm:text-base">
+                  <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500" />
+                  <span>Transferir a</span>
+                </Label>
+                <Select 
+                  value={transferData.toArea} 
+                  onValueChange={(value: Area) => setTransferData(prev => ({ ...prev, toArea: value }))}
+                >
+                  <SelectTrigger className="border-2 border-purple-200 focus:border-purple-500 h-10 sm:h-12 text-sm sm:text-base">
+                    <SelectValue placeholder="Seleccionar área destino..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nextAreas.map(area => (
+                      <SelectItem key={area} value={area} className="text-sm sm:text-base py-2 sm:py-3">
+                        {getAreaDisplayName(area)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            
+              {/* Cantidad a transferir */}
+              <div className="space-y-2 sm:space-y-3">
+                <Label className="text-gray-700 font-medium flex items-center space-x-2 text-sm sm:text-base">
+                  <Package className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
+                  <span>Cantidad a transferir</span>
+                </Label>
+                <div className="bg-white border-2 border-blue-200 rounded-xl p-3 sm:p-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                    <div className="flex-1">
+                      <Input
+                        type="number"
+                        min="1"
+                        max={getCurrentAreaPieces()}
+                        value={transferData.pieces}
+                        onChange={(e) => setTransferData(prev => ({ ...prev, pieces: e.target.value }))}
+                        required
+                        className="text-base sm:text-lg font-semibold text-center border-2 border-blue-300 focus:border-blue-500 h-10 sm:h-12"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="text-xs sm:text-sm text-gray-600 text-center sm:text-left">
+                      <span className="block">de <strong>{getCurrentAreaPieces()}</strong> disponibles</span>
+                      <span className="text-xs text-gray-500">en {user?.area ? getAreaDisplayName(user.area) : ''}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
             
-            <div>
-              <Label>Notas (opcional)</Label>
-              <Textarea
-                rows={3}
-                placeholder="Agregar comentarios sobre la transferencia..."
-                value={transferData.notes}
-                onChange={(e) => setTransferData(prev => ({ ...prev, notes: e.target.value }))}
-              />
+              {/* Notas */}
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-medium flex items-center space-x-2 text-sm sm:text-base">
+                  <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />
+                  <span>Notas adicionales (opcional)</span>
+                </Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Agregar comentarios sobre la transferencia..."
+                  value={transferData.notes}
+                  onChange={(e) => setTransferData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="border-2 border-gray-200 focus:border-blue-500 resize-none text-sm sm:text-base"
+                />
+              </div>
             </div>
-          </div>
           
-          <div className="flex justify-end space-x-3 mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={createTransferMutation.isPending || getCurrentAreaPieces() === 0}
-            >
-              {createTransferMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Transferir
-            </Button>
+            {/* Botones de acción */}
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onClose}
+                className="px-4 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 hover:bg-gray-50 text-sm sm:text-base order-2 sm:order-1"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={createTransferMutation.isPending || getCurrentAreaPieces() === 0}
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white font-semibold shadow-lg text-sm sm:text-base order-1 sm:order-2"
+              >
+                {createTransferMutation.isPending && <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />}
+                <span className="hidden sm:inline">Confirmar Transferencia</span>
+                <span className="sm:hidden">Confirmar</span>
+              </Button>
             </div>
           </form>
         )}

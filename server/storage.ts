@@ -105,8 +105,10 @@ export interface IStorage {
   getOrders(area?: Area): Promise<Order[]>;
   getOrderById(id: number): Promise<Order | undefined>;
   getOrderByFolio(folio: string): Promise<Order | undefined>;
-  completeOrder(orderId: number): Promise<void>;
+  completeOrder(orderId: number, completedBy: number): Promise<void>;
   deleteOrder(orderId: number): Promise<void>;
+  pauseOrder(orderId: number, pausedBy: number, reason: string): Promise<void>;
+  resumeOrder(orderId: number, resumedBy: number): Promise<void>;
 
   getOrderPieces(orderId: number): Promise<any[]>;
   updateOrderPieces(orderId: number, area: Area, pieces: number): Promise<void>;
@@ -121,6 +123,7 @@ export interface IStorage {
     fromArea?: Area;
     toArea?: Area;
     pieces?: number;
+    reason?: string;
   }): Promise<void>;
   getOrderHistory(orderId: number): Promise<OrderHistory[]>;
 
@@ -315,13 +318,47 @@ export class DatabaseStorage implements IStorage {
     return order || undefined;
   }
 
-  async completeOrder(orderId: number): Promise<void> {
+  async completeOrder(orderId: number, completedBy: number): Promise<void> {
     await db.update(orders)
       .set({ 
         status: 'completed',
         completedAt: new Date()
       })
       .where(eq(orders.id, orderId));
+
+    await this.addOrderHistory(
+      orderId,
+      'completed',
+      'Pedido completado',
+      completedBy
+    );
+  }
+
+  async pauseOrder(orderId: number, pausedBy: number, reason: string): Promise<void> {
+    await db.update(orders)
+      .set({ status: 'paused', updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+
+    await this.addOrderHistory(
+      orderId,
+      'paused',
+      `Pedido pausado - Motivo: ${reason}`,
+      pausedBy,
+      { reason }
+    );
+  }
+
+  async resumeOrder(orderId: number, resumedBy: number): Promise<void> {
+    await db.update(orders)
+      .set({ status: 'active', updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+
+    await this.addOrderHistory(
+      orderId,
+      'resumed',
+      'Pedido reanudado',
+      resumedBy
+    );
   }
 
   async deleteOrder(orderId: number): Promise<void> {
@@ -509,12 +546,14 @@ export class DatabaseStorage implements IStorage {
     await this.addOrderHistory(
       transfer.orderId,
       'transfer_rejected',
-      `Transferencia rechazada - ${transfer.pieces} piezas devueltas a ${transfer.fromArea}`,
+      `Transferencia rechazada: ${transfer.pieces} piezas permanecen en ${transfer.fromArea}. No se realizó el movimiento hacia ${transfer.toArea}`,
       processedBy,
       {
         fromArea: transfer.fromArea,
         toArea: transfer.toArea,
-        pieces: transfer.pieces
+        pieces: transfer.pieces,
+        transferId: transfer.id,
+        reason: 'Transferencia rechazada por el área destino'
       }
     );
   }
@@ -528,6 +567,7 @@ export class DatabaseStorage implements IStorage {
       fromArea?: Area;
       toArea?: Area;
       pieces?: number;
+      reason?: string;
     }
   ): Promise<void> {
     await db.insert(orderHistory).values({
@@ -856,7 +896,7 @@ export class DatabaseStorage implements IStorage {
 
   async getRepositionHistory(repositionId: number): Promise<RepositionHistory[]> {
     return await db.select().from(repositionHistory)
-      .where(eq(repositionHistory.repositionId, repositionId))
+      .where(eq(repositionHistory.repositionId, repositionHistory.repositionId))
       .orderBy(asc(repositionHistory.createdAt));
   }
 

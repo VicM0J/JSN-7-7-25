@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Eye, ArrowRight, History, CheckCircle, Trash2 } from "lucide-react";
+import { Eye, ArrowRight, History, CheckCircle, Trash2, Pause, Play } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -131,6 +131,74 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
   },
 });
 
+  const pauseOrderMutation = useMutation({
+    mutationFn: async (orderId: number) => {
+      const res = await apiRequest("POST", `/api/orders/${orderId}/pause`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Pedido pausado",
+        description: "El pedido ha sido pausado correctamente",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error al pausar pedido",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resumeOrderMutation = useMutation({
+    mutationFn: async (orderId: number) => {
+      const res = await apiRequest("POST", `/api/orders/${orderId}/resume`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Pedido reanudado",
+        description: "El pedido ha sido reanudado correctamente",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error al reanudar pedido",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handlePauseOrder = (order: Order) => {
+    Swal.fire({
+      title: '¿Pausar pedido?',
+      text: `¿Deseas pausar el pedido ${order.folio}?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, pausar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#6c757d',
+      customClass: {
+        popup: 'font-sans',
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        pauseOrderMutation.mutate(order.id);
+      }
+    });
+  };
+
+  const handleResumeOrder = (orderId: number) => {
+    resumeOrderMutation.mutate(orderId);
+  };
+
 
   const getAreaBadgeColor = (area: Area) => {
     const colors: Record<Area, string> = {
@@ -147,9 +215,9 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
   };
 
   const getStatusBadgeColor = (status: string) => {
-    return status === 'completed' 
-      ? "bg-green-100 text-green-800"
-      : "bg-yellow-100 text-yellow-800";
+    if (status === 'completed') return "bg-green-100 text-green-800";
+    if (status === 'paused') return "bg-red-100 text-red-800";
+    return "bg-yellow-100 text-yellow-800";
   };
 
   const getAreaDisplayName = (area: Area) => {
@@ -219,6 +287,7 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
                 <SelectItem value="all">Todos los Estados</SelectItem>
                 <SelectItem value="active">Activos</SelectItem>
                 <SelectItem value="completed">Finalizados</SelectItem>
+                <SelectItem value="paused">Pausados</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -260,56 +329,84 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
                   <TableCell>{order.totalPiezas}</TableCell>
                   <TableCell>
                     <Badge className={getStatusBadgeColor(order.status)}>
-                      {order.status === 'completed' ? 'Finalizado' : 'En Proceso'}
+                      {order.status === 'completed' ? 'Finalizado' : 
+                       order.status === 'paused' ? 'Pausado' : 'En Proceso'}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
                       <Button 
-                        variant="ghost" 
+                        variant="outline" 
                         size="sm"
                         onClick={() => onViewDetails(order.id)}
                         title="Ver detalles"
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
 
                       {order.status === 'active' && (
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm"
                           onClick={() => onTransferOrder(order.id)}
                           title="Transferir"
+                          className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200"
                         >
                           <ArrowRight className="h-4 w-4" />
                         </Button>
                       )}
 
+                      {order.currentArea === user?.area && order.status === 'active' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handlePauseOrder(order)}
+                          title="Pausar pedido"
+                          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200"
+                        >
+                          <Pause className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {order.currentArea === user?.area && order.status === 'paused' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleResumeOrder(order.id)}
+                          title="Reanudar pedido"
+                          className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                      )}
+
                       {user?.area === 'envios' && order.status === 'active' && (
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm"
                           onClick={() => completeOrderMutation.mutate(order.id)}
                           disabled={completeOrderMutation.isPending}
                           title="Finalizar pedido"
-                          className="text-green-600 hover:text-green-700"
+                          className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
                         >
                           <CheckCircle className="h-4 w-4" />
                         </Button>
                       )}
 
                       <Button 
-                        variant="ghost" 
+                        variant="outline" 
                         size="sm"
                         onClick={() => onViewHistory(order.id)}
                         title="Ver historial"
+                        className="bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
                       >
                         <History className="h-4 w-4" />
                       </Button>
 
                       {user?.area === 'admin' && (
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm"
                           onClick={() => {
                             Swal.fire({
@@ -332,7 +429,7 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
                           }}
                           disabled={deleteOrderMutation.isPending}
                           title="Eliminar pedido"
-                          className="text-red-600 hover:text-red-700"
+                          className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
