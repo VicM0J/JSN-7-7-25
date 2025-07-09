@@ -87,12 +87,24 @@ export function RepositionDetail({
     }
   });
 
-  const { data: pieces = [] } = useQuery({
+  const { data: pieces = [], isLoading: isPiecesLoading } = useQuery({
     queryKey: ['reposition-pieces', repositionId],
     queryFn: async () => {
       const response = await fetch(`/api/repositions/${repositionId}/pieces`);
       if (!response.ok) return [];
-      return response.json();
+      const data = await response.json();
+      console.log('Pieces data completa:', data);
+      console.log('Pieces con folios:', data.filter(p => p.folioOriginal));
+      data.forEach((piece, index) => {
+        console.log(`Piece ${index}:`, {
+          id: piece.id,
+          talla: piece.talla,
+          cantidad: piece.cantidad,
+          folioOriginal: piece.folioOriginal,
+          folioOriginalType: typeof piece.folioOriginal
+        });
+      });
+      return data;
     }
   });
 
@@ -347,16 +359,45 @@ export function RepositionDetail({
                 <p className="font-semibold text-gray-700">Tipo de Pieza</p>
                 <p>{reposition.tipoPieza}</p>
               </div>
+              <div>
+                <p className="font-semibold text-gray-700">Piezas Totales</p>
+                <p className="text-lg font-bold text-purple-600">
+                  {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700">Urgencia</p>
+                <Badge className={urgencyColors[reposition.urgencia as keyof typeof urgencyColors]}>
+                  {reposition.urgencia}
+                </Badge>
+              </div>
+              {pieces.some(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '') && (
+                <div className="md:col-span-2">
+                  <p className="font-semibold text-gray-700">Folios Originales</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {pieces
+                      .filter(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '')
+                      .map((piece, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {piece.folioOriginal}
+                        </Badge>
+                      ))
+                    }
+                  </div>
+                </div>
+              )}
               {reposition.consumoTela && (
                 <div>
-                  <p className="font-semibold text-gray-700">Consumo de Tela:</p>
+                  <p className="font-semibold text-gray-700">Consumo de Tela</p>
                   <p>{reposition.consumoTela} metros</p>
                 </div>
               )}
               {reposition.consumoTela && (
                 <div>
-                  <p className="font-semibold text-gray-700">Valor Estimado:</p>
-                  <p>${(reposition.consumoTela * 60).toFixed(2)}</p>
+                  <p className="font-semibold text-gray-700">Valor Estimado</p>
+                  <p className="text-lg font-bold text-green-600">
+                    ${(reposition.consumoTela * 60).toFixed(2)}
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -366,7 +407,12 @@ export function RepositionDetail({
           {pieces.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Piezas Solicitadas</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Piezas Solicitadas</span>
+                  <Badge variant="outline" className="text-sm">
+                    Total: {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                  </Badge>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -375,18 +421,61 @@ export function RepositionDetail({
                       <TableHead>Talla</TableHead>
                       <TableHead>Cantidad</TableHead>
                       <TableHead>No° Folio Original</TableHead>
+                      <TableHead>Subtotal</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pieces.map((piece: RepositionPiece) => (
                       <TableRow key={piece.id}>
-                        <TableCell>{piece.talla}</TableCell>
-                        <TableCell>{piece.cantidad}</TableCell>
-                        <TableCell>{piece.folioOriginal || '-'}</TableCell>
+                        <TableCell className="font-medium">{piece.talla}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{piece.cantidad}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {piece.folioOriginal && piece.folioOriginal !== '' ? (
+                            <Badge variant="outline" className="text-xs">
+                              {piece.folioOriginal}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-400">Sin folio</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {piece.cantidad} pz
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-700">Total General:</span>
+                    <span className="text-lg font-bold text-purple-600">
+                      {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="font-semibold text-gray-700">Tallas diferentes:</span>
+                    <span className="text-sm text-gray-600">
+                      {pieces.length} talla{pieces.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {pieces.some(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '') && (
+                    <div className="mt-3">
+                      <span className="font-semibold text-gray-700">Folios incluidos:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {pieces
+                          .filter(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '')
+                          .map((piece, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {piece.folioOriginal}
+                            </Badge>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

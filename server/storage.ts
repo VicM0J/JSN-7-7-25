@@ -203,6 +203,8 @@ export interface IStorage {
   }): Promise<any>;
 
   getOrderDocuments(orderId: number): Promise<any[]>;
+
+  getRepositionPieces(repositionId: number): Promise<any[]>;
 }
 
 export interface LocalRepositionTimer {
@@ -894,7 +896,7 @@ export class DatabaseStorage implements IStorage {
 
     await db.update(repositions)
       .set({
-        status: 'cancelado' as RepositionStatus,
+        status: 'cancelled' as RepositionStatus,
         completedAt: new Date(),
       })
       .where(eq(repositions.id, repositionId));
@@ -1840,6 +1842,21 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     return docs;
   }
 
+  async getRepositionPieces(repositionId: number): Promise<any[]> {
+    const pieces = await db.select({
+      id: repositionPieces.id,
+      talla: repositionPieces.talla,
+      cantidad: repositionPieces.cantidad,
+      folioOriginal: repositionPieces.folioOriginal
+    })
+    .from(repositionPieces)
+    .where(eq(repositionPieces.repositionId, repositionId))
+    .orderBy(repositionPieces.id);
+
+    console.log('Pieces from database:', pieces);
+    return pieces;
+  }
+
   async getAllRepositionsForAlmacen(): Promise<any[]> {
     const result = await db.select({
       id: repositions.id,
@@ -2093,14 +2110,14 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
   // Funciones de métricas
   async getMonthlyMetrics(month: number, year: number): Promise<any> {
     console.log(`Getting monthly metrics for ${month}/${year}`);
-    
+
     // Ajustar la fecha para considerar la zona horaria de México
     const startDate = new Date(year, month, 1);
     startDate.setHours(6, 0, 0, 0); // UTC+6 para México
-    
+
     const endDate = new Date(year, month + 1, 0);
     endDate.setHours(29, 59, 59, 999); // Fin del día en UTC
-    
+
     console.log('Date range:', startDate.toISOString(), 'to', endDate.toISOString());
 
     try {
@@ -2135,7 +2152,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
 
       // Agrupar por área sumando todos los tipos
       const areaMap = new Map<string, { count: number, reposiciones: number, reprocesos: number }>();
-      
+
       repositionsQuery.forEach(item => {
         const area = item.area || 'Sin área';
         if (!areaMap.has(area)) {
@@ -2143,7 +2160,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
         }
         const areaData = areaMap.get(area)!;
         areaData.count += item.count;
-        
+
         if (item.type === 'repocision') {
           areaData.reposiciones += item.count;
         } else if (item.type === 'reproceso') {
@@ -2201,7 +2218,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
 
       // Causas de daño del mes
       const causesQuery = await db.select({
-        cause: repositions.causanteDano,
+        cause: repositions.tipoAccidente,
         count: sql<number>`COUNT(*)::int`
       })
       .from(repositions)
@@ -2209,9 +2226,9 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
         gte(repositions.createdAt, startDate),
         lte(repositions.createdAt, endDate),
         ne(repositions.status, 'eliminado' as RepositionStatus),
-        isNotNull(repositions.causanteDano)
+        isNotNull(repositions.tipoAccidente)
       ))
-      .groupBy(repositions.causanteDano);
+      .groupBy(repositions.tipoAccidente);
 
       const totalCauses = causesQuery.reduce((sum, item) => sum + item.count, 0);
       const byCause = causesQuery.map(item => ({
@@ -2236,7 +2253,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
 
   async getOverallMetrics(): Promise<any> {
     console.log('Getting overall metrics...');
-    
+
     // Total de reposiciones
     const totalRepositionsQuery = await db.select({ count: sql<number>`COUNT(*)::int` })
       .from(repositions)
@@ -2294,14 +2311,14 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
       mostActiveArea,
       monthlyAverage
     };
-    
+
     console.log('Overall metrics result:', result);
     return result;
   }
 
   async getRequestAnalysis(): Promise<any> {
     console.log('Getting request analysis...');
-    
+
     // Obtener todas las reposiciones agrupadas por número de solicitud
     const requestsQuery = await db.select({
       noSolicitud: repositions.noSolicitud,
@@ -2361,7 +2378,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
       mostProblematicRequest,
       topRequests
     };
-    
+
     console.log('Request analysis result:', result);
     return result;
   }

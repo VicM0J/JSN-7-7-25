@@ -736,6 +736,24 @@ function registerRepositionRoutes(app: Express) {
     }
   });
 
+  router.get("/:id/pieces", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
+
+    try {
+      const repositionId = parseInt(req.params.id);
+      if (isNaN(repositionId)) {
+        return res.status(400).json({ message: "ID de reposición inválido" });
+      }
+      
+      const pieces = await storage.getRepositionPieces(repositionId);
+      console.log('Pieces from endpoint:', pieces);
+      res.json(pieces);
+    } catch (error) {
+      console.error('Get reposition pieces error:', error);
+      res.status(500).json({ message: "Error al obtener piezas de la reposición" });
+    }
+  });
+
   router.post("/:id/transfer", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
 

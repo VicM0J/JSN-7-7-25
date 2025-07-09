@@ -338,7 +338,6 @@ export default function MetricsPage() {
                                 <p className="font-bold text-gray-800 text-lg">{area.area}</p>
                                 <div className="space-y-1">
                                   <p className="text-sm text-gray-600">{area.count} reposiciones</p>
-                                  <p className="text-sm text-gray-600">{area.pieces} piezas</p>
                                 </div>
                               </div>
                               <div className="text-right">
