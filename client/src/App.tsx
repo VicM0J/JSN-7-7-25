@@ -14,6 +14,7 @@ import AgendaPage from "@/pages/agenda-page";
 import AlmacenPage from "@/pages/almacen-page";
 import AuthPage from "@/pages/auth-page";
 import NotFound from "./pages/not-found";
+import MetricsPage from "./pages/metrics-page";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
       <ProtectedRoute path="/almacen" component={AlmacenPage} />
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/agenda" component={AgendaPage} />
+       <ProtectedRoute path="/metrics" component={MetricsPage} />
       <Route component={NotFound} />
     </Switch>
   );

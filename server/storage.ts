@@ -42,8 +42,10 @@ import {
   type RepositionType,
   type RepositionStatus
 } from "@shared/schema";
-import { db } from './db';
-import { eq, and, or, desc, asc, ne } from "drizzle-orm";
+import { db } from "./db";
+import { eq, desc, and, or, ne, isNotNull, isNull, count, gte, lte, sql, asc } from 'drizzle-orm';
+import bcrypt from "bcrypt";
+import ExcelJS from 'exceljs';
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -84,6 +86,13 @@ function broadcastNotification(notification: any) {
 }
 
 export interface IStorage {
+  // Métodos de métricas
+  getMonthlyMetrics(month: number, year: number): Promise<any>;
+  getOverallMetrics(): Promise<any>;
+  getRequestAnalysis(): Promise<any>;
+  exportMonthlyMetrics(month: number, year: number): Promise<Buffer>;
+  exportOverallMetrics(): Promise<Buffer>;
+  exportRequestAnalysis(): Promise<Buffer>;
 
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -1780,22 +1789,22 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
   }): Promise<any> {
     console.log('=== SAVE ORDER DOCUMENT DEBUG ===');
     console.log('Document data received:', documentData);
-    
+
     // Validate required fields
     if (!documentData.size || documentData.size <= 0) {
       throw new Error('Size field is required and must be greater than 0');
     }
-    
+
     if (!documentData.filename || !documentData.originalName) {
       throw new Error('Filename and originalName are required');
     }
-    
+
     if (!documentData.orderId || !documentData.uploadedBy) {
       throw new Error('OrderId and uploadedBy are required');
     }
-    
+
     console.log('All validations passed, inserting document...');
-    
+
     const [document] = await db.insert(documents)
       .values({
         filename: documentData.filename,
@@ -1809,7 +1818,7 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
 
     console.log('Document saved successfully:', document);
     console.log('=== END SAVE ORDER DOCUMENT DEBUG ===');
-    
+
     return document;
   }
 
@@ -2081,7 +2090,328 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
     }
   }
 
-  
+  // Funciones de métricas
+  async getMonthlyMetrics(month: number, year: number): Promise<any> {
+    console.log(`Getting monthly metrics for ${month}/${year}`);
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+    
+    console.log('Date range:', startDate, 'to', endDate);
+
+    // Reposiciones del mes por área
+    const repositionsQuery = await db.select({
+      area: repositions.solicitanteArea,
+      count: count(),
+      pieces: repositions.id // placeholder, calcularemos después
+    })
+    .from(repositions)
+    .where(and(
+      gte(repositions.createdAt, startDate),
+      lte(repositions.createdAt, endDate),
+      ne(repositions.status, 'eliminado' as RepositionStatus)
+    ))
+    .groupBy(repositions.solicitanteArea);
+
+    console.log('Repositions query result:', repositionsQuery);
+
+    const totalRepositions = repositionsQuery.reduce((sum, item) => sum + item.count, 0);
+    console.log('Total repositions:', totalRepositions);
+
+    // Si no hay reposiciones, retornar datos vacíos
+    if (totalRepositions === 0) {
+      return {
+        byArea: [],
+        byCause: [],
+        total: 0
+      };
+    }
+
+    // Calcular piezas por área y porcentajes
+    const byArea = await Promise.all(repositionsQuery.map(async (item) => {
+      const areaPieces = await db.select({
+        totalPieces: count()
+      })
+      .from(repositionPieces)
+      .innerJoin(repositions, eq(repositionPieces.repositionId, repositions.id))
+      .where(and(
+        eq(repositions.solicitanteArea, item.area),
+        gte(repositions.createdAt, startDate),
+        lte(repositions.createdAt, endDate),
+        ne(repositions.status, 'eliminado' as RepositionStatus)
+      ));
+
+      const pieces = areaPieces[0]?.totalPieces || 0;
+      const percentage = totalRepositions > 0 ? Math.round((item.count / totalRepositions) * 100) : 0;
+
+      return {
+        area: item.area || 'Sin área',
+        count: item.count,
+        pieces,
+        percentage
+      };
+    }));
+
+    // Causas de daño del mes
+    const causesQuery = await db.select({
+      cause: repositions.causanteDano,
+      count: count()
+    })
+    .from(repositions)
+    .where(and(
+      gte(repositions.createdAt, startDate),
+      lte(repositions.createdAt, endDate),
+      ne(repositions.status, 'eliminado' as RepositionStatus),
+      isNotNull(repositions.causanteDano)
+    ))
+    .groupBy(repositions.causanteDano);
+
+    const totalCauses = causesQuery.reduce((sum, item) => sum + item.count, 0);
+    const byCause = causesQuery.map(item => ({
+      cause: item.cause || 'Sin especificar',
+      count: item.count,
+      percentage: totalCauses > 0 ? Math.round((item.count / totalCauses) * 100) : 0
+    }));
+
+    console.log('Final metrics result:', { byArea, byCause, total: totalRepositions });
+
+    return {
+      byArea,
+      byCause,
+      total: totalRepositions
+    };
+  }
+
+  async getOverallMetrics(): Promise<any> {
+    console.log('Getting overall metrics...');
+    
+    // Total de reposiciones
+    const totalRepositionsQuery = await db.select({ count: count() })
+      .from(repositions)
+      .where(ne(repositions.status, 'eliminado' as RepositionStatus));
+
+    const totalRepositions = totalRepositionsQuery[0]?.count || 0;
+    console.log('Total repositions:', totalRepositions);
+
+    // Total de piezas
+    const totalPiecesQuery = await db.select({ count: count() })
+      .from(repositionPieces)
+      .innerJoin(repositions, eq(repositionPieces.repositionId, repositions.id))
+      .where(ne(repositions.status, 'eliminado' as RepositionStatus));
+
+    const totalPieces = totalPiecesQuery[0]?.count || 0;
+    console.log('Total pieces:', totalPieces);
+
+    // Área más activa
+    let mostActiveArea = 'N/A';
+    if (totalRepositions > 0) {
+      const mostActiveAreaQuery = await db.select({
+        area: repositions.solicitanteArea,
+        count: count()
+      })
+      .from(repositions)
+      .where(and(
+        ne(repositions.status, 'eliminado' as RepositionStatus),
+        isNotNull(repositions.solicitanteArea)
+      ))
+      .groupBy(repositions.solicitanteArea)
+      .orderBy(desc(count()))
+      .limit(1);
+
+      mostActiveArea = mostActiveAreaQuery[0]?.area || 'N/A';
+    }
+    console.log('Most active area:', mostActiveArea);
+
+    // Promedio mensual (últimos 12 meses)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+    const monthlyAvgQuery = await db.select({ count: count() })
+      .from(repositions)
+      .where(and(
+        gte(repositions.createdAt, twelveMonthsAgo),
+        ne(repositions.status, 'eliminado' as RepositionStatus)
+      ));
+
+    const monthlyAverage = Math.round((monthlyAvgQuery[0]?.count || 0) / 12);
+    console.log('Monthly average:', monthlyAverage);
+
+    const result = {
+      totalRepositions,
+      totalPieces,
+      mostActiveArea,
+      monthlyAverage
+    };
+    
+    console.log('Overall metrics result:', result);
+    return result;
+  }
+
+  async getRequestAnalysis(): Promise<any> {
+    console.log('Getting request analysis...');
+    
+    // Obtener todas las reposiciones agrupadas por número de solicitud
+    const requestsQuery = await db.select({
+      noSolicitud: repositions.noSolicitud,
+      type: repositions.type,
+      count: count()
+    })
+    .from(repositions)
+    .where(and(
+      ne(repositions.status, 'eliminado' as RepositionStatus),
+      isNotNull(repositions.noSolicitud)
+    ))
+    .groupBy(repositions.noSolicitud, repositions.type);
+
+    console.log('Requests query result:', requestsQuery);
+
+    // Procesar los datos para obtener reposiciones y reprocesos por solicitud
+    const requestsMap = new Map();
+
+    requestsQuery.forEach(item => {
+      const key = item.noSolicitud;
+      if (!requestsMap.has(key)) {
+        requestsMap.set(key, { reposiciones: 0, reprocesos: 0 });
+      }
+
+      const data = requestsMap.get(key);
+      if (item.type === 'repocision') {
+        data.reposiciones += item.count;
+      } else if (item.type === 'reproceso') {
+        data.reprocesos += item.count;
+      }
+    });
+
+    console.log('Requests map:', requestsMap);
+
+    // Convertir a array y calcular totales
+    const topRequests = Array.from(requestsMap.entries())
+      .map(([noSolicitud, data]: [string, any]) => ({
+        noSolicitud,
+        reposiciones: data.reposiciones,
+        reprocesos: data.reprocesos,
+        total: data.reposiciones + data.reprocesos
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    const totalRequestsWithRepositions = requestsMap.size;
+    const allRepositionsCount = requestsQuery.reduce((sum, item) => sum + item.count, 0);
+    const averageRepositionsPerRequest = totalRequestsWithRepositions > 0 
+      ? Math.round(allRepositionsCount / totalRequestsWithRepositions * 100) / 100 
+      : 0;
+
+    const mostProblematicRequest = topRequests[0]?.noSolicitud || 'N/A';
+
+    const result = {
+      totalRequestsWithRepositions,
+      averageRepositionsPerRequest,
+      mostProblematicRequest,
+      topRequests
+    };
+    
+    console.log('Request analysis result:', result);
+    return result;
+  }
+
+  async exportMonthlyMetrics(month: number, year: number): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const metrics = await this.getMonthlyMetrics(month, year);
+
+    // Hoja 1: Reposiciones por área
+    const worksheet1 = workbook.addWorksheet('Por Área');
+    worksheet1.columns = [
+      { header: 'Área', key: 'area', width: 15 },
+      { header: 'Reposiciones', key: 'count', width: 15 },
+      { header: 'Piezas', key: 'pieces', width: 15 },
+      { header: 'Porcentaje', key: 'percentage', width: 15 }
+    ];
+
+    metrics.byArea.forEach((item: any) => {
+      worksheet1.addRow(item);
+    });
+
+    // Hoja 2: Causas de daño
+    const worksheet2 = workbook.addWorksheet('Causas de Daño');
+    worksheet2.columns = [
+      { header: 'Causa', key: 'cause', width: 30 },
+      { header: 'Cantidad', key: 'count', width: 15 },
+      { header: 'Porcentaje', key: 'percentage', width: 15 }
+    ];
+
+    metrics.byCause.forEach((item: any) => {
+      worksheet2.addRow(item);
+    });
+
+    // Estilo para headers
+    [worksheet1, worksheet2].forEach(ws => {
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE6E6E6' }
+      };
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
+  async exportOverallMetrics(): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Métricas Generales');
+    const metrics = await this.getOverallMetrics();
+
+    worksheet.columns = [
+      { header: 'Métrica', key: 'metric', width: 25 },
+      { header: 'Valor', key: 'value', width: 15 }
+    ];
+
+    worksheet.addRow({ metric: 'Total Reposiciones', value: metrics.totalRepositions });
+    worksheet.addRow({ metric: 'Total Piezas', value: metrics.totalPieces });
+    worksheet.addRow({ metric: 'Área Más Activa', value: metrics.mostActiveArea });
+    worksheet.addRow({ metric: 'Promedio Mensual', value: metrics.monthlyAverage });
+
+    // Style headers
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE6E6E6' }
+    };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
+  async exportRequestAnalysis(): Promise<Buffer> {
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Análisis de Solicitudes');
+
+    // Headers
+    worksheet.columns = [
+      { header: 'No. Solicitud', key: 'noSolicitud', width: 15 },
+      { header: 'Total Reposiciones', key: 'total', width: 18 },
+      { header: 'Reposiciones', key: 'reposiciones', width: 15 },
+      { header: 'Reprocesos', key: 'reprocesos', width: 15 },
+    ];
+
+    const analysis = await this.getRequestAnalysis();
+    analysis.topRequests.forEach((request: any) => {
+      worksheet.addRow(request);
+    });
+
+    // Style headers
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE6E6E6' }
+    };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
 }
 
 export const storage = new DatabaseStorage();

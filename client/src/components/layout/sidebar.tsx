@@ -267,6 +267,18 @@ export function Sidebar({ onShowNotifications, onCreateOrder }: SidebarProps) {
               </Button>
             </li>
           )}
+           {isAdmin && (
+            <li>
+              <Button 
+                variant="ghost" 
+                className={`w-full justify-start ${location === '/metrics' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
+                onClick={() => setLocation('/metrics')}
+              >
+                <BarChart3 className="mr-3 h-4 w-4" />
+                Métricas
+              </Button>
+            </li>
+          )}
         </ul>
       </nav>
 
