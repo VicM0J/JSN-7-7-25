@@ -7,11 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Eye, ArrowRight, CheckCircle, XCircle, Clock, MapPin, Activity, Trash2, Flag, Bell, Search, Play, Square, Printer } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Plus, Eye, ArrowRight, CheckCircle, XCircle, Clock, MapPin, Activity, Trash2, Flag, Bell, Search, Play, Square, Printer, CalendarIcon } from 'lucide-react';
 import { RepositionForm } from './RepositionForm';
 import { RepositionDetail } from './RepositionDetail';
 import { RepositionTracker } from './RepositionTracker';
 import { RepositionPrintSummary } from './RepositionPrintSummary';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import Swal from 'sweetalert2';
 
 interface Reposition {
@@ -72,14 +77,14 @@ export function RepositionList({ userArea }: { userArea: string }) {
   const [activeTimers, setActiveTimers] = useState<Record<number, boolean>>({});
   const [completionNotes, setCompletionNotes] = useState<Record<number, string>>({});
   const [transferModalId, setTransferModalId] = useState<number | null>(null);
-  const [manualTimes, setManualTimes] = useState<Record<number, { startTime: string; endTime: string; date: string }>>({});
+  const [manualTimes, setManualTimes] = useState<Record<number, { startTime: string; endTime: string; startDate: Date | undefined; endDate: Date | undefined }>>({});
   const queryClient = useQueryClient();
 
   const { data: repositions = [], isLoading } = useQuery<Reposition[]>({
     queryKey: ['repositions', filterArea, showHistory, includeDeleted],
     queryFn: async () => {
       let url = '/api/repositions';
-      
+
       if (showHistory && (userArea === 'admin' || userArea === 'envios')) {
         url = `/api/repositions/all?includeDeleted=${includeDeleted}`;
       } else if (filterArea && filterArea !== 'all') {
@@ -363,7 +368,7 @@ export function RepositionList({ userArea }: { userArea: string }) {
     }
   };
 
-  const updateManualTime = (repositionId: number, field: 'startTime' | 'endTime' | 'date', value: string) => {
+  const updateManualTime = (repositionId: number, field: 'startTime' | 'endTime' | 'startDate' | 'endDate', value: string | Date) => {
     setManualTimes(prev => ({
       ...prev,
       [repositionId]: {
@@ -375,10 +380,10 @@ export function RepositionList({ userArea }: { userArea: string }) {
 
   const handleSubmitManualTime = async (repositionId: number) => {
     const timeData = manualTimes[repositionId];
-    if (!timeData?.startTime || !timeData?.endTime) {
+    if (!timeData?.startTime || !timeData?.endTime || !timeData?.startDate || !timeData?.endDate) {
       Swal.fire({
         title: 'Error',
-        text: 'Debe completar la hora de inicio y fin',
+        text: 'Debe completar las fechas y horas de inicio y fin',
         icon: 'error',
         confirmButtonColor: '#8B5CF6'
       });
@@ -386,6 +391,21 @@ export function RepositionList({ userArea }: { userArea: string }) {
     }
 
     try {
+      // Asegurar que las fechas estén en formato YYYY-MM-DD
+      const startDate = timeData.startDate instanceof Date 
+        ? format(timeData.startDate, 'yyyy-MM-dd')
+        : timeData.startDate;
+      const endDate = timeData.endDate instanceof Date 
+        ? format(timeData.endDate, 'yyyy-MM-dd')
+        : timeData.endDate;
+
+      console.log('Sending manual time data:', {
+        startTime: timeData.startTime,
+        endTime: timeData.endTime,
+        startDate,
+        endDate
+      });
+
       const response = await fetch(`/api/repositions/${repositionId}/timer/manual`, {
         method: 'POST',
         headers: {
@@ -395,13 +415,15 @@ export function RepositionList({ userArea }: { userArea: string }) {
         body: JSON.stringify({
           startTime: timeData.startTime,
           endTime: timeData.endTime,
-          date: timeData.date || new Date().toISOString().split('T')[0]
+          startDate,
+          endDate
         })
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al registrar tiempo');
+        throw new Error(responseData.message || 'Error al registrar tiempo');
       }
 
       Swal.fire({
@@ -420,6 +442,7 @@ export function RepositionList({ userArea }: { userArea: string }) {
 
       queryClient.invalidateQueries({ queryKey: ['repositions'] });
     } catch (error) {
+      console.error('Error registering manual time:', error);
       Swal.fire({
         title: 'Error',
         text: error instanceof Error ? error.message : 'Error al registrar tiempo',
@@ -890,30 +913,32 @@ export function RepositionList({ userArea }: { userArea: string }) {
                                   // Verificar si ya existe un tiempo registrado para esta área
                                   try {
                                     const response = await fetch(`/api/repositions/${reposition.id}/timer`);
-                                    const existingTimer = await response.json();
 
-                                    if (existingTimer && existingTimer.manualStartTime && existingTimer.manualEndTime) {
-                                      Swal.fire({
-                                        title: 'Tiempo ya registrado',
-                                        html: `Ya existe un tiempo registrado para esta área:<br/>
-                                               <strong>Fecha:</strong> ${existingTimer.manualDate}<br/>
-                                               <strong>Inicio:</strong> ${existingTimer.manualStartTime}<br/>
-                                               <strong>Fin:</strong> ${existingTimer.manualEndTime}<br/>
-                                               <strong>Duración:</strong> ${Math.floor(existingTimer.elapsedMinutes / 60)}h ${Math.round(existingTimer.elapsedMinutes % 60)}m`,
-                                        icon: 'info',
-                                        confirmButtonColor: '#8B5CF6'
-                                      });
-                                      return;
+                                    if (response.ok) {
+                                      const timer = await response.json();
+
+                                      if (timer && (timer.manualStartTime || timer.startTime)) {
+                                        Swal.fire({
+                                          title: 'Tiempo ya registrado',
+                                          text: 'Ya existe un tiempo registrado para esta reposición en su área.',
+                                          icon: 'info',
+                                          confirmButtonColor: '#8B5CF6',
+                                          confirmButtonText: 'Entendido'
+                                        });
+                                        return;
+                                      }
                                     }
                                   } catch (error) {
-                                    console.log('No existing timer found, proceeding with registration');
+                                    console.error('Error checking timer:', error);
+                                    // Continuar con el registro si hay error al verificar
+                                    console.log('Proceeding with registration');
                                   }
 
                                   const existing = manualTimes[reposition.id];
                                   if (existing) {
                                     setManualTimes(prev => ({ ...prev, [reposition.id]: existing }));
                                   } else {
-                                    setManualTimes(prev => ({ ...prev, [reposition.id]: { startTime: '', endTime: '', date: new Date().toISOString().split('T')[0] } }));
+                                    setManualTimes(prev => ({ ...prev, [reposition.id]: { startTime: '', endTime: '', startDate: new Date(), endDate: new Date() } }));
                                   }
                                 }}
                               >
@@ -922,34 +947,107 @@ export function RepositionList({ userArea }: { userArea: string }) {
                               </Button>
 
                               {manualTimes[reposition.id] && (
-                                <div className="space-y-2 mt-2">
-                                  <div className="flex gap-2">
-                                    <div className="flex-1">
-                                      <Label htmlFor={`start-time-${reposition.id}`}>Inicio:</Label>
+                                <div className="space-y-3 mt-2 p-3 border rounded-lg bg-gray-50">
+                                  {/* Fecha y hora de inicio */}
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <Label htmlFor={`start-date-${reposition.id}`} className="text-sm font-medium">Fecha de inicio:</Label>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            className={cn(
+                                              "w-full justify-start text-left font-normal mt-1",
+                                              !manualTimes[reposition.id]?.startDate && "text-muted-foreground"
+                                            )}
+                                          >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {manualTimes[reposition.id]?.startDate ? (
+                                              format(manualTimes[reposition.id].startDate!, "PPP", { locale: es })
+                                            ) : (
+                                              <span>Fecha inicio</span>
+                                            )}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <Calendar
+                                            mode="single"
+                                            selected={manualTimes[reposition.id]?.startDate}
+                                            onSelect={(date) => updateManualTime(reposition.id, 'startDate', date)}
+                                            disabled={(date) =>
+                                              date > new Date() || date < new Date("1900-01-01")
+                                            }
+                                            initialFocus
+                                            locale={es}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`start-time-${reposition.id}`} className="text-sm font-medium">Hora de inicio:</Label>
                                       <Input
                                         type="time"
                                         id={`start-time-${reposition.id}`}
                                         value={manualTimes[reposition.id]?.startTime || ''}
                                         onChange={(e) => updateManualTime(reposition.id, 'startTime', e.target.value)}
+                                        className="mt-1"
                                       />
                                     </div>
-                                    <div className="flex-1">
-                                      <Label htmlFor={`end-time-${reposition.id}`}>Fin:</Label>
+                                  </div>
+                                  
+                                  {/* Fecha y hora de fin */}
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <Label htmlFor={`end-date-${reposition.id}`} className="text-sm font-medium">Fecha de fin:</Label>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            className={cn(
+                                              "w-full justify-start text-left font-normal mt-1",
+                                              !manualTimes[reposition.id]?.endDate && "text-muted-foreground"
+                                            )}
+                                          >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {manualTimes[reposition.id]?.endDate ? (
+                                              format(manualTimes[reposition.id].endDate!, "PPP", { locale: es })
+                                            ) : (
+                                              <span>Fecha fin</span>
+                                            )}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <Calendar
+                                            mode="single"
+                                            selected={manualTimes[reposition.id]?.endDate}
+                                            onSelect={(date) => updateManualTime(reposition.id, 'endDate', date)}
+                                            disabled={(date) =>
+                                              date > new Date() || date < new Date("1900-01-01")
+                                            }
+                                            initialFocus
+                                            locale={es}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`end-time-${reposition.id}`} className="text-sm font-medium">Hora de fin:</Label>
                                       <Input
                                         type="time"
                                         id={`end-time-${reposition.id}`}
                                         value={manualTimes[reposition.id]?.endTime || ''}
                                         onChange={(e) => updateManualTime(reposition.id, 'endTime', e.target.value)}
+                                        className="mt-1"
                                       />
                                     </div>
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-2 pt-2">
                                     <Button
                                       size="sm"
-                                      variant="outline"
-                                      className="text-green-600 hover:bg-green-50"
+                                      className="bg-green-600 hover:bg-green-700 text-white"
                                       onClick={() => handleSubmitManualTime(reposition.id)}
                                     >
+                                      <Clock className="w-4 h-4 mr-2" />
                                       Guardar Tiempo
                                     </Button>
                                     <Button

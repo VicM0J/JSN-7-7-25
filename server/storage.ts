@@ -191,7 +191,7 @@ export interface IStorage {
   startRepositionTimer(repositionId: number, area: Area, userId: number): Promise<SharedRepositionTimer>;
   stopRepositionTimer(repositionId: number, area: Area, userId: number): Promise<{ elapsedTime: string }>;
   getRepositionTimers(repositionId: number): Promise<LocalRepositionTimer[]>;
-  setManualRepositionTime(repositionId: number, area: Area, userId: number, startTime: string, endTime: string, date: string): Promise<SharedRepositionTimer>;
+  setManualRepositionTime(repositionId: number, area: Area, userId: number, startTime: string, endTime: string, date: string, startDate: string, endDate: string): Promise<SharedRepositionTimer>;
   getRepositionTimer(repositionId: number, area: Area): Promise<SharedRepositionTimer | null>;
 
    updateUser(userId: number, updateData: any): Promise<void>;
@@ -896,7 +896,7 @@ export class DatabaseStorage implements IStorage {
 
   async getRepositionHistory(repositionId: number): Promise<RepositionHistory[]> {
     return await db.select().from(repositionHistory)
-      .where(eq(repositionHistory.repositionId, repositionHistory.repositionId))
+      .where(eq(repositionHistory.repositionId, repositionId))
       .orderBy(asc(repositionHistory.createdAt));
   }
 
@@ -976,7 +976,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Reposición no encontrada');
     }
 
-    console.log('Found reund reposition:', reposition.folio);
+    console.log('Found reposition:', reposition.folio);
 
     await db.update(repositions)
       .set({
@@ -1124,8 +1124,8 @@ async getRepositionTracking(repositionId: number): Promise<any> {
 
     const reposition = await this.getRepositionById(repositionId);
     if (!reposition) {
-      console.log('Reposition not found for ID:', repositionId);
-      throw new Error('Reposition not found');
+      console.log('Reposicion not found for ID:', repositionId);
+      throw new Error('Reposición no encontrada');
     }
 
     console.log('Found reposition:', reposition.folio);
@@ -1210,7 +1210,7 @@ async getRepositionTracking(repositionId: number): Promise<any> {
         id: index + 1,
         area,
         status,
-        timestamp: areaHistory?.timestamp || areaTimer?.createdAt,
+        timestamp: areaHistory?.createdAt || areaTimer?.createdAt,
         user: areaHistory?.userName,
         timeSpent,
         timeInMinutes,
@@ -1596,18 +1596,51 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     throw new Error("Method not implemented.");
   }
 
-  async setManualRepositionTime(repositionId: number, area: Area, userId: number, startTime: string, endTime: string, date: string): Promise<SharedRepositionTimer> {
+  async setManualRepositionTime(repositionId: number, area: Area, userId: number, startTime: string, endTime: string, date: string, startDate: string, endDate: string): Promise<SharedRepositionTimer> {
     // Validar formato de tiempo (HH:MM)
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
       throw new Error('Formato de tiempo inválido. Use HH:MM');
     }
 
+    // Función para normalizar fechas
+    const normalizeDateString = (dateStr: string): string => {
+      if (!dateStr) throw new Error('Fecha requerida');
+      
+      // Si viene en formato ISO, extraer solo la fecha
+      if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      
+      // Si es un objeto Date serializado, intentar parsearlo
+      if (dateStr.includes('-') && dateStr.length >= 10) {
+        return dateStr.substring(0, 10);
+      }
+      
+      return dateStr;
+    };
+
+    // Normalizar todas las fechas
+    const normalizedDate = normalizeDateString(date);
+    const normalizedStartDate = normalizeDateString(startDate);
+    const normalizedEndDate = normalizeDateString(endDate);
+
     // Validar formato de fecha (YYYY-MM-DD)
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(date)) {
+    
+    if (!dateRegex.test(normalizedDate)) {
+      console.log('Invalid date format received:', date, 'normalized:', normalizedDate);
       throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
     }
+    if (!dateRegex.test(normalizedStartDate) || !dateRegex.test(normalizedEndDate)) {
+      console.log('Invalid date formats received:', startDate, endDate, 'normalized:', normalizedStartDate, normalizedEndDate);
+      throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
+    }
+    
+    // Usar las fechas normalizadas
+    date = normalizedDate;
+    startDate = normalizedStartDate;
+    endDate = normalizedEndDate;
 
     // Verificar si ya existe un timer para esta reposición y área
     const existingTimer = await db.select().from(repositionTimers)
@@ -1621,24 +1654,19 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       throw new Error('Ya existe un tiempo registrado para esta área. No se puede modificar.');
     }
 
-    // Calcular minutos transcurridos
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
+    // Calcular minutos transcurridos considerando fechas diferentes
+    const startDateTime = new Date(`${startDate}T${startTime}`);
+    const endDateTime = new Date(`${endDate}T${endTime}`);
 
-    const startTotalMinutes = startHour * 60 + startMinute;
-    const endTotalMinutes = endHour * 60 + endMinute;
-
-    let elapsedMinutes = endTotalMinutes - startTotalMinutes;
-    if (elapsedMinutes < 0) {
-      elapsedMinutes += 24 * 60; // Asume que el trabajo cruzó la medianoche
-    }
+    const elapsedMilliseconds = endDateTime.getTime() - startDateTime.getTime();
+    const elapsedMinutes = Math.floor(elapsedMilliseconds / (1000 * 60));
 
     // Asegurar que elapsedMinutes es un número válido
     if (isNaN(elapsedMinutes) || elapsedMinutes < 0) {
-      elapsedMinutes = 0;
+      throw new Error('Error al calcular el tiempo transcurrido');
     }
 
-    console.log(`Manual time calculation: ${startTime} to ${endTime} = ${elapsedMinutes} minutes`);
+    console.log(`Manual time calculation: ${startDate} ${startTime} to ${endDate} ${endTime} = ${elapsedMinutes} minutes`);
 
     // Crear nuevo timer
     const [timer] = await db.insert(repositionTimers)
@@ -1649,6 +1677,8 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
         manualStartTime: startTime,
         manualEndTime: endTime,
         manualDate: date,
+        manualStartDate: startDate,
+        manualEndDate: endDate,
         elapsedMinutes: Math.round(elapsedMinutes), // Redondear para evitar decimales problemáticos
         isRunning: false,
       })
@@ -1664,7 +1694,7 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     await db.insert(repositionHistory).values({
       repositionId,
       action: 'manual_time_set',
-      description: `Tiempo registrado manualmente en área ${area}: ${startTime} - ${endTime} (${date}) - Duración: ${timeFormatted}`,
+      description: `Tiempo registrado manualmente en área ${area}: ${startDate} ${startTime} - ${endDate} ${endTime} - Duración: ${timeFormatted}`,
       userId
     });
 
@@ -2019,6 +2049,11 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
     const [reposition] = await db.select().from(repositions).where(eq(repositions.id, id));
     if (!reposition) return undefined;
 
+    // Obtener tela de contraste si existe
+    const contrastFabric = await db.select().from(repositionContrastFabrics)
+      .where(eq(repositionContrastFabrics.repositionId, id))
+      .limit(1);
+
     return {
       id: reposition.id,
       folio: reposition.folio,
@@ -2045,7 +2080,8 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
       tipoAccidente: reposition.tipoAccidente,
       otroAccidente: reposition.otroAccidente,
       volverHacer: reposition.volverHacer,
-      materialesImplicados: reposition.materialesImplicados
+      materialesImplicados: reposition.materialesImplicados,
+      telaContraste: contrastFabric.length > 0 ? contrastFabric[0] : null
     };
   }
 

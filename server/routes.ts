@@ -1243,26 +1243,27 @@ function registerRepositionRoutes(app: Express) {
     }
   });
 
-  router.post("/:id/timer/manual", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
-
+  // Update manual timer route to handle separate start and end dates
+  router.post("/:id/timer/manual", authenticateToken, async (req, res) => {
     try {
-      const user = req.user!;
+      const user = (req as any).user;
       const repositionId = parseInt(req.params.id);
       if (isNaN(repositionId)) {
         return res.status(400).json({ message: "ID de reposición inválido" });
       }
 
-      const { startTime, endTime, date } = req.body;
-      if (!startTime || !endTime || !date) {
-        return res.status(400).json({ message: "Hora de inicio, fin y fecha son requeridas" });
+      const { startTime, endTime, startDate, endDate } = req.body;
+      console.log('Manual timer request data:', { startTime, endTime, startDate, endDate, repositionId, userArea: user.area });
+
+      if (!startTime || !endTime || !startDate || !endDate) {
+        return res.status(400).json({ message: "Hora de inicio, fin, fecha de inicio y fecha de fin son requeridas" });
       }
 
-      const timer = await storage.setManualRepositionTime(repositionId, user.area, user.id, startTime, endTime, date);
+      const timer = await storage.setManualRepositionTime(repositionId, user.area, user.id, startTime, endTime, startDate, startDate, endDate);
       res.json(timer);
     } catch (error) {
       console.error('Set manual time error:', error);
-      res.status(400).json({ message: (error as Error).message });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Error al registrar tiempo manual" });
     }
   });
 

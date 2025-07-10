@@ -396,6 +396,10 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reposition_timers' AND column_name = 'manual_date') THEN
         ALTER TABLE reposition_timers ADD COLUMN manual_date VARCHAR(10);
     END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reposition_timers' AND column_name = 'manual_end_date') THEN
+        ALTER TABLE reposition_timers ADD COLUMN manual_end_date VARCHAR(10);
+    END IF;
 END
 $$;
 

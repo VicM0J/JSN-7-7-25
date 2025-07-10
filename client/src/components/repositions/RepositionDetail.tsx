@@ -35,6 +35,18 @@ interface RepositionDetail {
   consumoTela?: number;
   tipoAccidente?: string;
   areaCausanteDano?: string;
+  telaContraste?: {
+    tela: string;
+    color: string;
+    consumo: number;
+    tipoPiezas?: Array<{
+      tipoPieza: string;
+      pieces: Array<{
+        talla: string;
+        cantidad: number;
+      }>;
+    }>;
+  };
 }
 
 interface RepositionPiece {
@@ -114,6 +126,15 @@ export function RepositionDetail({
     queryKey: ['reposition-history', repositionId],
     queryFn: async () => {
       const response = await fetch(`/api/repositions/${repositionId}/history`);
+      if (!response.ok) return [];
+      return response.json();
+    }
+  });
+
+  const { data: contrastPieces = [] } = useQuery({
+    queryKey: ['reposition-contrast-pieces', repositionId],
+    queryFn: async () => {
+      const response = await fetch(`/api/repositions/${repositionId}/contrast-pieces`);
       if (!response.ok) return [];
       return response.json();
     }
@@ -387,6 +408,18 @@ export function RepositionDetail({
                   <p className="font-semibold text-gray-700">Color</p>
                   <p>{reposition.color}</p>
                 </div>
+                 {reposition.telaContraste && (
+                  <>
+                    <div>
+                      <p className="font-semibold text-gray-700">Segunda Tela</p>
+                      <p>{reposition.telaContraste.tela || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-700">Color Segunda Tela</p>
+                      <p>{reposition.telaContraste.color || 'N/A'}</p>
+                    </div>
+                  </>
+                )}
                 <div>
                   <p className="font-semibold text-gray-700">Tipo de Pieza</p>
                   <p>{reposition.tipoPieza}</p>
@@ -513,6 +546,60 @@ export function RepositionDetail({
             </Card>
           )}
 
+          {/* Piezas de Segunda Tela - Solo para reposiciones con tela contraste */}
+          {reposition.type !== 'reproceso' && reposition.telaContraste && contrastPieces.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Piezas de Segunda Tela ({reposition.telaContraste.tela} - {reposition.telaContraste.color})</span>
+                  <Badge variant="outline" className="text-sm">
+                    Total: {contrastPieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tipo de Pieza</TableHead>
+                      <TableHead>Talla</TableHead>
+                      <TableHead>Cantidad</TableHead>
+                      <TableHead>Subtotal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contrastPieces.map((piece: any) => (
+                      <TableRow key={piece.id}>
+                        <TableCell className="font-medium">{piece.tipoPieza}</TableCell>
+                        <TableCell>{piece.talla}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{piece.cantidad}</Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {piece.cantidad} pz
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-700">Total Segunda Tela:</span>
+                    <span className="text-lg font-bold text-purple-600">
+                      {contrastPieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="font-semibold text-gray-700">Tipos de pieza diferentes:</span>
+                    <span className="text-sm text-gray-600">
+                      {[...new Set(contrastPieces.map(p => p.tipoPieza))].length} tipo{[...new Set(contrastPieces.map(p => p.tipoPieza))].length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Observaciones */}
           {reposition.observaciones && (
             <Card>
@@ -525,7 +612,7 @@ export function RepositionDetail({
             </Card>
           )}
 
-          
+
 
           {/* Documentos */}
           <Card>
