@@ -408,18 +408,6 @@ export function RepositionDetail({
                   <p className="font-semibold text-gray-700">Color</p>
                   <p>{reposition.color}</p>
                 </div>
-                 {reposition.telaContraste && (
-                  <>
-                    <div>
-                      <p className="font-semibold text-gray-700">Segunda Tela</p>
-                      <p>{reposition.telaContraste.tela || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-700">Color Segunda Tela</p>
-                      <p>{reposition.telaContraste.color || 'N/A'}</p>
-                    </div>
-                  </>
-                )}
                 <div>
                   <p className="font-semibold text-gray-700">Tipo de Pieza</p>
                   <p>{reposition.tipoPieza}</p>
@@ -427,7 +415,7 @@ export function RepositionDetail({
                 <div>
                   <p className="font-semibold text-gray-700">Piezas Totales</p>
                   <p className="text-lg font-bold text-purple-600">
-                    {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                    {pieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0) + contrastPieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0)} piezas
                   </p>
                 </div>
                 <div>
@@ -469,131 +457,227 @@ export function RepositionDetail({
             </Card>
           )}
 
+          {/* Segunda Tela - Solo para reposiciones con tela contraste */}
+          {reposition.type !== 'reproceso' && reposition.telaContraste && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5" />
+                  Segunda Tela
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <p className="font-semibold text-gray-700">Tela</p>
+                    <p>{reposition.telaContraste.tela || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Color</p>
+                    <p>{reposition.telaContraste.color || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Tipos de Piezas</p>
+                    <p className="text-sm text-gray-600">
+                      {contrastPieces.length > 0 
+                        ? contrastPieces.map(piece => piece.tipoPieza).filter((value, index, self) => self.indexOf(value) === index).join(', ')
+                        : 'No especificado'
+                      }
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Detalles de piezas de Segunda Tela */}
+                {contrastPieces.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-2">Detalles de Piezas:</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {contrastPieces.map((piece: any, index: number) => (
+                        <div key={`contrast-info-${piece.id}`} className="bg-blue-50 p-3 rounded-lg">
+                          <div className="space-y-1">
+                            <div>
+                              <span className="font-medium text-blue-800">Tipo de Pieza:</span>
+                              <p className="text-blue-700">{piece.tipoPieza}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium text-blue-800">Talla:</span>
+                              <p className="text-blue-700">{piece.talla}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium text-blue-800">Cantidad:</span>
+                              <p className="text-blue-700 font-bold">{typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0} piezas</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Piezas Solicitadas - Solo para reposiciones */}
-          {reposition.type !== 'reproceso' && pieces.length > 0 && (
+          {reposition.type !== 'reproceso' && (pieces.length > 0 || contrastPieces.length > 0) && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Piezas Solicitadas</span>
                   <Badge variant="outline" className="text-sm">
-                    Total: {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                    Total: {pieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0) + contrastPieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0)} piezas
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Talla</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>No° Folio Original</TableHead>
-                      <TableHead>Subtotal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pieces.map((piece: RepositionPiece) => (
-                      <TableRow key={piece.id}>
-                        <TableCell className="font-medium">{piece.talla}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{piece.cantidad}</Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-600">
-                          {piece.folioOriginal && piece.folioOriginal !== '' ? (
-                            <Badge variant="outline" className="text-xs">
-                              {piece.folioOriginal}
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-400">Sin folio</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {piece.cantidad} pz
-                        </TableCell>
+                {/* Sección de Tela Principal */}
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-700 mb-3 text-lg">Tela Principal</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tipo de Pieza</TableHead>
+                        <TableHead>Talla</TableHead>
+                        <TableHead>Cantidad</TableHead>
+                        <TableHead>No° Folio Original</TableHead>
+                        <TableHead>Subtotal</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-gray-700">Total General:</span>
-                    <span className="text-lg font-bold text-purple-600">
-                      {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
-                    </span>
+                    </TableHeader>
+                    <TableBody>
+                      {pieces.map((piece: RepositionPiece) => {
+                        const cantidad = typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0;
+                        return (
+                          <TableRow key={`main-${piece.id}`}>
+                            <TableCell className="font-medium">{reposition.tipoPieza}</TableCell>
+                            <TableCell>{piece.talla}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{cantidad}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">
+                              {piece.folioOriginal && piece.folioOriginal !== '' ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {piece.folioOriginal}
+                                </Badge>
+                              ) : (
+                                <span className="text-gray-400">Sin folio</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {cantidad} pz
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-gray-700">Subtotal Tela Principal:</span>
+                      <span className="text-lg font-bold text-purple-600">
+                        {pieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0)} piezas
+                      </span>
+                    </div>
+                    {pieces.some(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '') && (
+                      <div className="mt-2">
+                        <span className="font-semibold text-gray-700">Folios incluidos:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {pieces
+                            .filter(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '')
+                            .map((piece, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {piece.folioOriginal}
+                              </Badge>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between items-center mt-2">
-                    <span className="font-semibold text-gray-700">Tallas diferentes:</span>
-                    <span className="text-sm text-gray-600">
-                      {pieces.length} talla{pieces.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  {pieces.some(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '') && (
-                    <div className="mt-3">
-                      <span className="font-semibold text-gray-700">Folios incluidos:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {pieces
-                          .filter(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '')
-                          .map((piece, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {piece.folioOriginal}
-                            </Badge>
-                          ))
-                        }
+                </div>
+
+                {/* Sección de Segunda Tela - Solo si hay piezas de segunda tela */}
+                {contrastPieces.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-semibold text-gray-700 mb-3 text-lg">Segunda Tela</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Tipo de Pieza</TableHead>
+                          <TableHead>Talla</TableHead>
+                          <TableHead>Cantidad</TableHead>
+                          <TableHead>No° Folio Original</TableHead>
+                          <TableHead>Subtotal</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {contrastPieces.map((piece: any) => {
+                          const cantidad = typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0;
+                          return (
+                            <TableRow key={`contrast-${piece.id}`} className="bg-blue-50">
+                              <TableCell className="font-medium">
+                                {piece.tipoPieza || 'Tipo no especificado'}
+                              </TableCell>
+                              <TableCell>{piece.talla}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">{cantidad}</Badge>
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600">
+                                <span className="text-gray-400">-</span>
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {cantidad} pz
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-blue-800">Subtotal Segunda Tela:</span>
+                        <span className="text-lg font-bold text-blue-600">
+                          {contrastPieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0)} piezas
+                        </span>
+                      </div>
+                      <div className="mt-2">
+                        <span className="font-semibold text-blue-800">Detalles:</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                          {contrastPieces.map((piece: any, index: number) => (
+                            <div key={`detail-${piece.id}`} className="bg-blue-100 p-2 rounded">
+                              <div className="text-xs text-blue-800">
+                                <strong>{piece.tipoPieza || 'Tipo no especificado'}</strong> - 
+                                Talla {piece.talla} - 
+                                {typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0} piezas
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Piezas de Segunda Tela - Solo para reposiciones con tela contraste */}
-          {reposition.type !== 'reproceso' && reposition.telaContraste && contrastPieces.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Piezas de Segunda Tela ({reposition.telaContraste.tela} - {reposition.telaContraste.color})</span>
-                  <Badge variant="outline" className="text-sm">
-                    Total: {contrastPieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tipo de Pieza</TableHead>
-                      <TableHead>Talla</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>Subtotal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {contrastPieces.map((piece: any) => (
-                      <TableRow key={piece.id}>
-                        <TableCell className="font-medium">{piece.tipoPieza}</TableCell>
-                        <TableCell>{piece.talla}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{piece.cantidad}</Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {piece.cantidad} pz
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-gray-700">Total Segunda Tela:</span>
-                    <span className="text-lg font-bold text-purple-600">
-                      {contrastPieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
+                  </div>
+                )}
+                {/* Resumen General Final */}
+                <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-2 border-purple-200">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="font-bold text-purple-800 text-xl">Total General de la Solicitud:</span>
+                    <span className="text-2xl font-bold text-purple-600">
+                      {pieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0) + contrastPieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0)} piezas
                     </span>
                   </div>
-                  <div className="flex justify-between items-center mt-2">
-                    <span className="font-semibold text-gray-700">Tipos de pieza diferentes:</span>
-                    <span className="text-sm text-gray-600">
-                      {[...new Set(contrastPieces.map(p => p.tipoPieza))].length} tipo{[...new Set(contrastPieces.map(p => p.tipoPieza))].length !== 1 ? 's' : ''}
-                    </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="flex justify-between items-center p-2 bg-white rounded">
+                      <span className="font-semibold text-gray-700">Tela Principal:</span>
+                      <span className="font-bold text-purple-600">
+                        {pieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0)} piezas
+                      </span>
+                    </div>
+                    {contrastPieces.length > 0 && (
+                      <div className="flex justify-between items-center p-2 bg-white rounded">
+                        <span className="font-semibold text-gray-700">Segunda Tela:</span>
+                        <span className="font-bold text-blue-600">
+                          {contrastPieces.reduce((total, piece) => total + (typeof piece.cantidad === 'number' ? piece.cantidad : parseInt(piece.cantidad) || 0), 0)} piezas
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

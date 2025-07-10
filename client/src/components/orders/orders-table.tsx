@@ -1,16 +1,18 @@
-
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Eye, ArrowRight, History, CheckCircle, Trash2, Pause, Play } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { type Order, type Area } from "@shared/schema";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Eye, ArrowRight, History, CheckCircle, Pause, Play, Trash2 } from "lucide-react";
 import Swal from 'sweetalert2';
 
 interface OrdersTableProps {
@@ -20,12 +22,20 @@ interface OrdersTableProps {
   onViewDetails: (orderId: number) => void;
 }
 
-export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onViewDetails }: OrdersTableProps) {
+export function OrdersTable({
+  searchTerm,
+  onTransferOrder,
+  onViewHistory,
+  onViewDetails,
+}: OrdersTableProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [areaFilter, setAreaFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [pauseDialog, setPauseDialog] = useState(false);
+  const [pauseReason, setPauseReason] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [areaFilter, setAreaFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const trashIconSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" class="animate-bounce text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="48" height="48">
   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -132,8 +142,8 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
 });
 
   const pauseOrderMutation = useMutation({
-    mutationFn: async (orderId: number) => {
-      const res = await apiRequest("POST", `/api/orders/${orderId}/pause`);
+    mutationFn: async ({ orderId, reason }: { orderId: number; reason: string }) => {
+      const res = await apiRequest("POST", `/api/orders/${orderId}/pause`, { body: JSON.stringify({ reason }) });
       return await res.json();
     },
     onSuccess: () => {
@@ -143,6 +153,9 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
       });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setPauseDialog(false);
+      setPauseReason('');
+      setSelectedOrder(null);
     },
     onError: (error: Error) => {
       toast({
@@ -176,23 +189,14 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
   });
 
   const handlePauseOrder = (order: Order) => {
-    Swal.fire({
-      title: '¿Pausar pedido?',
-      text: `¿Deseas pausar el pedido ${order.folio}?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, pausar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#f59e0b',
-      cancelButtonColor: '#6c757d',
-      customClass: {
-        popup: 'font-sans',
-      },
-    }).then((result) => {
-      if (result.isConfirmed) {
-        pauseOrderMutation.mutate(order.id);
-      }
-    });
+    setSelectedOrder(order);
+    setPauseDialog(true);
+  };
+
+  const handleConfirmPause = () => {
+    if (selectedOrder) {
+      pauseOrderMutation.mutate({ orderId: selectedOrder.id, reason: pauseReason });
+    }
   };
 
   const handleResumeOrder = (orderId: number) => {
@@ -442,6 +446,63 @@ export function OrdersTable({ searchTerm, onTransferOrder, onViewHistory, onView
           </Table>
         </div>
       </CardContent>
+      
+      {/* Modal de Pausa */}
+      <Dialog open={pauseDialog} onOpenChange={(open) => {
+        setPauseDialog(open);
+        if (!open) {
+          setPauseReason('');
+          setSelectedOrder(null);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pausar Pedido</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Al pausar este pedido, se detendrá temporalmente su procesamiento. 
+              Debes explicar el motivo de la pausa.
+            </p>
+            {selectedOrder && (
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="font-medium">Pedido: {selectedOrder.folio}</p>
+                <p className="text-sm text-gray-600">Cliente: {selectedOrder.clienteHotel}</p>
+                <p className="text-sm text-gray-600">Modelo: {selectedOrder.modelo}</p>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="pause-reason">Motivo de la pausa *</Label>
+              <Textarea
+                id="pause-reason"
+                value={pauseReason}
+                onChange={(e) => setPauseReason(e.target.value)}
+                placeholder="Ejemplo: Falta de material específico, problema con maquinaria, etc..."
+                required
+                rows={4}
+                className="min-h-[100px] resize-none"
+              />
+              {pauseReason.trim().length > 0 && pauseReason.trim().length < 10 && (
+                <p className="text-sm text-red-600 mt-1">
+                  El motivo debe tener al menos 10 caracteres
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPauseDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConfirmPause}
+              disabled={!pauseReason.trim() || pauseReason.trim().length < 10 || pauseOrderMutation.isPending}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {pauseOrderMutation.isPending ? 'Pausando...' : 'Pausar Pedido'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

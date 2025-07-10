@@ -516,7 +516,13 @@ export default function OrdersPage() {
                   placeholder="Ejemplo: Falta de material específico, problema con maquinaria, etc..."
                   required
                   rows={4}
+                  className="min-h-[100px] resize-none"
                 />
+                {pauseReason.trim().length > 0 && pauseReason.trim().length < 10 && (
+                  <p className="text-sm text-red-600 mt-1">
+                    El motivo debe tener al menos 10 caracteres
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>
