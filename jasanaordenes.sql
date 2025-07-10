@@ -35,7 +35,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
-        CREATE TYPE order_status AS ENUM ('active', 'completed', 'cancelled');
+        CREATE TYPE order_status AS ENUM ('active', 'completed', 'cancelled', 'paused');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transfer_status') THEN

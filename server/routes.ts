@@ -821,7 +821,9 @@ function registerRepositionRoutes(app: Express) {
 
       let repositions;
 
-      if (user.area === 'diseño') {
+      // Para diseño y almacén: solo mostrar reposiciones aprobadas
+      if (user.area === 'diseño' || user.area === 'almacen') {
+        console.log(`User is from ${user.area} area, filtering approved repositions`);
         // Diseño puede ver todas las reposiciones aprobadas
         repositions = await storage.getRepositions(undefined, 'diseño');
       }

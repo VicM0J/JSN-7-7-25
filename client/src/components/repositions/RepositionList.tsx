@@ -721,14 +721,14 @@ export function RepositionList({ userArea }: { userArea: string }) {
           </SelectContent>
         </Select>
 
-        {(userArea === 'admin' || userArea === 'envios' || userArea === 'diseño') && (
+        {(userArea === 'admin' || userArea === 'envios' || userArea === 'diseño' || userArea === 'almacen') && (
           <>
             <Select value={filterArea} onValueChange={setFilterArea}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Filtrar por área" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{userArea === 'diseño' ? 'Todas las aprobadas' : 'Todas las áreas'}</SelectItem>
+                <SelectItem value="all">{(userArea === 'diseño' || userArea === 'almacen') ? 'Todas las aprobadas' : 'Todas las áreas'}</SelectItem>
                 {areas.map(area => (
                   <SelectItem key={area} value={area}>
                     {area.charAt(0).toUpperCase() + area.slice(1)}
