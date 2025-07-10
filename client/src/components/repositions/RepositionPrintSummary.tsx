@@ -90,7 +90,7 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
             </div>
 
             {/* Contenido imprimible */}
-            <div className="print:mt-0">
+            <div className="print:mt-0 print:block">
               <Card className="print:shadow-none print:border-0">
                 <CardHeader className="text-center print:pb-1 pb-3">
                   <CardTitle className="text-lg font-bold print:text-sm">
@@ -141,7 +141,7 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
                     ) : (
                       <>
                         {/* Para Reposiciones */}
-                        <div className="grid grid-cols-2 gap-2 print:gap-1">
+                        <div className="grid grid-cols-2 gap-2 print:gap-1 print:grid-cols-4">
                           <div>
                             <span className="font-semibold text-xs print:text-xs">No. Solicitud:</span>
                             <div className="text-sm border-b border-dotted border-gray-400 min-h-5 pt-1 print:text-xs print:min-h-3">
@@ -154,9 +154,6 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
                               {reposition.modeloPrenda}
                             </div>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 print:gap-1">
                           <div>
                             <span className="font-semibold text-xs print:text-xs">Color:</span>
                             <div className="text-sm border-b border-dotted border-gray-400 min-h-5 pt-1 print:text-xs print:min-h-3">
@@ -175,7 +172,7 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
                         {pieces.length > 0 && (
                           <div className="print:mb-1">
                             <span className="font-semibold text-xs print:text-xs">Detalle por Talla:</span>
-                            <div className="mt-1 text-xs grid grid-cols-4 gap-1 print:grid-cols-6 print:text-xs">
+                            <div className="mt-1 text-xs grid grid-cols-4 gap-1 print:grid-cols-8 print:text-xs">
                               {pieces.map((piece: any) => (
                                 <div key={piece.id} className="text-center border border-gray-300 p-0.5 rounded print:p-0">
                                   <div className="font-semibold print:text-xs">{piece.talla}</div>
@@ -208,7 +205,7 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
                     )}
 
                     {/* Campos manuales más compactos */}
-                    <div className="grid grid-cols-2 gap-2 print:gap-1 print:mb-1">
+                    <div className="grid grid-cols-2 gap-2 print:gap-1 print:mb-1 print:grid-cols-4">
                       <div>
                         <span className="font-semibold text-xs print:text-xs">Fecha/Hora Inicio:</span>
                         <div className="border-b border-gray-400 min-h-5 pt-1 text-xs print:min-h-3 print:text-xs">
@@ -221,21 +218,33 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
                           ___/___/____ ___:___
                         </div>
                       </div>
+                      <div>
+                        <span className="font-semibold text-xs print:text-xs">Urgencia:</span>
+                        <div className="border-b border-gray-400 min-h-5 pt-1 text-xs print:min-h-3 print:text-xs">
+                          {reposition.urgencia}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-xs print:text-xs">Causante:</span>
+                        <div className="border-b border-gray-400 min-h-5 pt-1 text-xs print:min-h-3 print:text-xs">
+                          {reposition.causanteDano}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Información adicional en líneas más compactas */}
                     <div className="text-xs text-gray-600 print:text-xs print:mb-1">
-                      <div className="grid grid-cols-2 gap-1 print:gap-0.5">
+                      <div className="grid grid-cols-2 gap-1 print:gap-0.5 print:grid-cols-4">
                         <div><strong>Solicitante:</strong> {reposition.solicitanteNombre}</div>
                         <div><strong>Área:</strong> {reposition.solicitanteArea}</div>
-                        <div><strong>Urgencia:</strong> {reposition.urgencia}</div>
-                        <div><strong>Causante:</strong> {reposition.causanteDano}</div>
+                        <div><strong>Tela:</strong> {reposition.tela}</div>
+                        <div><strong>Tipo Pieza:</strong> {reposition.tipoPieza}</div>
                       </div>
                     </div>
 
                     {/* Nombres más compactos */}
                     <div className="mt-3 pt-2 border-t print:mt-1 print:pt-1">
-                      <div className="grid grid-cols-2 gap-4 print:gap-2">
+                      <div className="grid grid-cols-2 gap-4 print:gap-2 print:grid-cols-4">
                         <div className="text-center">
                           <div className="border-b border-gray-400 mb-1 min-h-5 print:min-h-3"></div>
                           <span className="text-xs print:text-xs">Nombre Operario</span>
@@ -254,35 +263,82 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
         </div>
       </div>
 
-      {/* Estilos de impresión optimizados para media hoja carta ultra compacta */}
+      {/* Estilos de impresión optimizados */}
       <style jsx>{`
         @media print {
           @page {
-            margin: 0.2in;
+            margin: 0.5in 0.3in;
             size: letter;
+          }
+          
+          * {
+            box-sizing: border-box !important;
           }
           
           body * {
             visibility: hidden;
           }
           
-          .fixed.inset-0.bg-black.bg-opacity-50 * {
-            visibility: visible;
+          /* Solo hacer visible el contenido imprimible */
+          .print\\:block,
+          .print\\:block * {
+            visibility: visible !important;
           }
           
-          .fixed.inset-0.bg-black.bg-opacity-50 {
-            position: static !important;
-            background: white !important;
+          /* Configurar el contenedor principal para usar todo el ancho */
+          .print\\:block {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
             height: 50vh !important;
             max-height: 50vh !important;
+            overflow: visible !important;
+            padding: 0.5rem !important;
+            margin: 0 !important;
+            background: white !important;
           }
           
-          .print\\:block {
-            display: block !important;
+          /* Ocultar completamente el modal y overlay */
+          .fixed {
+            position: static !important;
+            background: transparent !important;
+            width: 100% !important;
+            height: auto !important;
+            max-width: none !important;
+            max-height: none !important;
+            overflow: visible !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          
+          /* Ocultar el contenedor del modal */
+          .bg-white.rounded-lg {
+            background: transparent !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: none !important;
+            width: 100% !important;
           }
           
           .print\\:hidden {
             display: none !important;
+          }
+          
+          /* Configurar la tarjeta para usar todo el ancho */
+          .print\\:shadow-none {
+            box-shadow: none !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            border: 1px solid #333 !important;
+          }
+          
+          .print\\:border-0 {
+            border: 1px solid #333 !important;
           }
           
           .print\\:mt-0 {
@@ -346,17 +402,42 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
           }
           
           .print\\:grid-cols-6 {
-            grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(8, minmax(0, 1fr)) !important;
           }
           
+          /* Ajustar el layout del contenido para aprovechar el ancho completo */
+          .print\\:p-2 {
+            padding: 1rem !important;
+          }
+          
+          /* Hacer los grids más anchos */
+          .grid-cols-2 {
+            grid-template-columns: repeat(3, 1fr) !important;
+          }
+          
+          .grid-cols-4 {
+            grid-template-columns: repeat(6, 1fr) !important;
+          }
+          
+          /* Ajustar el tamaño de texto para mejor legibilidad */
           .print\\:text-xs {
-            font-size: 0.65rem !important;
-            line-height: 0.9rem !important;
+            font-size: 0.75rem !important;
+            line-height: 1.1rem !important;
           }
           
           .print\\:text-sm {
-            font-size: 0.75rem !important;
+            font-size: 0.875rem !important;
+            line-height: 1.2rem !important;
+          }
+          
+          .print\\:text-xs {
+            font-size: 0.7rem !important;
             line-height: 1rem !important;
+          }
+          
+          .print\\:text-sm {
+            font-size: 0.8rem !important;
+            line-height: 1.1rem !important;
           }
           
           .print\\:min-h-3 {
@@ -369,6 +450,168 @@ export function RepositionPrintSummary({ repositionId, onClose }: RepositionPrin
           
           .print\\:min-h-5 {
             min-height: 1.25rem !important;
+          }
+          
+          /* Ajustes específicos para el contenido */
+          .bg-white {
+            background: white !important;
+          }
+          
+          .rounded-lg {
+            border-radius: 0 !important;
+          }
+          
+          .max-w-lg {
+            max-width: none !important;
+          }
+          
+          .max-h-90vh {
+            max-height: none !important;
+          }
+          
+          .overflow-y-auto {
+            overflow: visible !important;
+          }
+          
+          /* Asegurar que el contenido se vea completo */
+          .space-y-3 > * + * {
+            margin-top: 0.5rem !important;
+          }
+          
+          .grid {
+            display: grid !important;
+          }
+          
+          .grid-cols-1 {
+            grid-template-columns: 1fr !important;
+          }
+          
+          .grid-cols-2 {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          
+          .grid-cols-4 {
+            grid-template-columns: repeat(4, 1fr) !important;
+          }
+          
+          .gap-1 {
+            gap: 0.25rem !important;
+          }
+          
+          .gap-2 {
+            gap: 0.5rem !important;
+          }
+          
+          .text-center {
+            text-align: center !important;
+          }
+          
+          .font-bold {
+            font-weight: bold !important;
+          }
+          
+          .font-semibold {
+            font-weight: 600 !important;
+          }
+          
+          .border {
+            border: 1px solid #d1d5db !important;
+          }
+          
+          .border-gray-300 {
+            border-color: #d1d5db !important;
+          }
+          
+          .border-gray-400 {
+            border-color: #9ca3af !important;
+          }
+          
+          .border-b {
+            border-bottom: 1px solid #d1d5db !important;
+          }
+          
+          .border-dotted {
+            border-style: dotted !important;
+          }
+          
+          .border-t {
+            border-top: 1px solid #d1d5db !important;
+          }
+          
+          .rounded {
+            border-radius: 0.25rem !important;
+          }
+          
+          .min-h-5 {
+            min-height: 1.25rem !important;
+          }
+          
+          .min-h-6 {
+            min-height: 1.5rem !important;
+          }
+          
+          .min-h-8 {
+            min-height: 2rem !important;
+          }
+          
+          .min-h-12 {
+            min-height: 3rem !important;
+          }
+          
+          .pt-1 {
+            padding-top: 0.25rem !important;
+          }
+          
+          .pt-2 {
+            padding-top: 0.5rem !important;
+          }
+          
+          .p-1 {
+            padding: 0.25rem !important;
+          }
+          
+          .p-0\\.5 {
+            padding: 0.125rem !important;
+          }
+          
+          .mt-1 {
+            margin-top: 0.25rem !important;
+          }
+          
+          .mt-3 {
+            margin-top: 0.75rem !important;
+          }
+          
+          .mb-1 {
+            margin-bottom: 0.25rem !important;
+          }
+          
+          .text-xs {
+            font-size: 0.75rem !important;
+            line-height: 1rem !important;
+          }
+          
+          .text-sm {
+            font-size: 0.875rem !important;
+            line-height: 1.25rem !important;
+          }
+          
+          .text-base {
+            font-size: 1rem !important;
+            line-height: 1.5rem !important;
+          }
+          
+          .text-lg {
+            font-size: 1.125rem !important;
+            line-height: 1.75rem !important;
+          }
+          
+          .text-gray-600 {
+            color: #4b5563 !important;
+          }
+          
+          .text-gray-700 {
+            color: #374151 !important;
           }
         }
       `}</style>
