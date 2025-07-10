@@ -760,7 +760,13 @@ export default function AdminPage() {
       </Card>
 
         {/* Modales */}
-        <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
+        <Dialog open={showResetModal} onOpenChange={(open) => {
+          setShowResetModal(open);
+          if (!open) {
+            setNewPassword("");
+            setSelectedUser(null);
+          }
+        }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Restablecer Contraseña</DialogTitle></DialogHeader>
             <div className="space-y-4">
@@ -771,7 +777,12 @@ export default function AdminPage() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <Dialog open={showEditModal} onOpenChange={(open) => {
+          setShowEditModal(open);
+          if (!open) {
+            setEditForm({ name: '', username: '', area: '', newPassword: '' });
+          }
+        }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Editar Usuario</DialogTitle></DialogHeader>
             <div className="space-y-4">
@@ -785,14 +796,18 @@ export default function AdminPage() {
                   ))}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Nueva Contraseña (Opcional)</Label><Input type="password" value={editForm.newPassword} onChange={e => setEditForm({ ...editForm, newPassword: e.target.value })} placeholder="Dejar vacío para mantener actual" /></div>
               <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowEditModal(false)}>Cancelar</Button><Button onClick={handleSaveEdit}>Guardar Cambios</Button></div>
             </div>
           </DialogContent>
         </Dialog>
 
-        <Dialog open={showClearDatabaseModal} onOpenChange={setShowClearDatabaseModal}>
-          <DialogContent className="max-w-2xl" >
+        <Dialog open={showClearDatabaseModal} onOpenChange={(open) => {
+          setShowClearDatabaseModal(open);
+          if (!open) {
+            setConfirmationCode("");
+          }
+        }}>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-red-800">
                 <AlertTriangle className="h-5 w-5" />

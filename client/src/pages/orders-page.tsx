@@ -177,10 +177,10 @@ export default function OrdersPage() {
       order.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.clienteHotel.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.modelo.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesArea = areaFilter === "all" || order.currentArea === areaFilter;
     const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    
+
     return matchesSearch && matchesArea && matchesStatus;
   });
 
@@ -259,7 +259,7 @@ export default function OrdersPage() {
               />
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             </div>
-            
+
             <Select value={areaFilter} onValueChange={setAreaFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Filtrar por área" />
@@ -355,7 +355,7 @@ export default function OrdersPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          
+
                           {order.status === 'active' && (
                             <Button 
                               variant="outline" 
@@ -391,7 +391,7 @@ export default function OrdersPage() {
                               <Play className="h-4 w-4" />
                             </Button>
                           )}
-                          
+
                           {user?.area === 'envios' && order.status === 'active' && (
                             <Button 
                               variant="outline" 
@@ -404,7 +404,7 @@ export default function OrdersPage() {
                               <CheckCircle className="h-4 w-4" />
                             </Button>
                           )}
-                          
+
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -414,7 +414,7 @@ export default function OrdersPage() {
                           >
                             <History className="h-4 w-4" />
                           </Button>
-                          
+
                           {user?.area === 'admin' && (
                             <Button 
                               variant="outline" 
@@ -448,7 +448,7 @@ export default function OrdersPage() {
                   ))}
                 </TableBody>
               </Table>
-              
+
               {filteredOrders.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   No se encontraron pedidos con los filtros aplicados

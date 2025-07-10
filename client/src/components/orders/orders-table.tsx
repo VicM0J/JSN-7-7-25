@@ -447,7 +447,7 @@ export function OrdersTable({
           </Table>
         </div>
       </CardContent>
-      
+
       {/* Modal de Pausa */}
       <Dialog open={pauseDialog} onOpenChange={(open) => {
         setPauseDialog(open);
