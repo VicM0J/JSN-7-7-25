@@ -166,6 +166,11 @@ BEGIN
         ALTER TYPE notification_type ADD VALUE 'completion_approval_needed';
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
+
+    BEGIN
+        ALTER TYPE notification_type ADD VALUE 'partial_transfer_warning';
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
 END
 $$;
 

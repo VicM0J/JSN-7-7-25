@@ -26,7 +26,8 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "reposition_resumed",
   "reposition_received",
   "transfer_processed",
-  "completion_approval_needed"
+  "completion_approval_needed",
+  "partial_transfer_warning"
 ]);
 export const materialStatusEnum = pgEnum("material_status", ["disponible", "falta_parcial", "no_disponible"]);
 

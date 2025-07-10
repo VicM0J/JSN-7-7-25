@@ -334,16 +334,40 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
-  async pauseOrder(orderId: number, pausedBy: number, reason: string): Promise<void> {
+  async pauseOrder(orderId: number, userId: number, reason: string): Promise<void> {
+    // Check if the user's area has the complete order
+    const order = await this.getOrderById(orderId);
+    if (!order) {
+      throw new Error("Pedido no encontrado");
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+
+    if (!user) {
+      throw new Error("Usuario no encontrado");
+    }
+
+    // Get pieces distribution
+    const orderPieces = await this.getOrderPieces(orderId);
+    const userAreaPieces = orderPieces.find(p => p.area === user.area);
+
+    // Check if user's area has the complete order
+    if (!userAreaPieces || userAreaPieces.pieces < order.totalPiezas) {
+      throw new Error(`⚠️ TRANSFERENCIA PARCIAL - No puedes pausar este pedido porque tu área (${user.area}) solo tiene ${userAreaPieces?.pieces || 0} piezas de ${order.totalPiezas} totales. Debes esperar a recibir la orden completa antes de poder pausarla.`);
+    }
+
     await db.update(orders)
-      .set({ status: 'paused', updatedAt: new Date() })
+      .set({ 
+        status: 'paused',
+        updatedAt: new Date()
+      })
       .where(eq(orders.id, orderId));
 
     await this.addOrderHistory(
       orderId,
       'paused',
       `Pedido pausado - Motivo: ${reason}`,
-      pausedBy,
+      userId,
       { reason }
     );
   }
@@ -449,6 +473,11 @@ export class DatabaseStorage implements IStorage {
 
     if (!transfer) return;
 
+    if (transfer.status !== 'pending') return;
+
+    let isPartialTransfer = false;
+    let hasCompleteOrder = false;
+
     await db.update(transfers)
       .set({
         status: 'accepted',
@@ -474,6 +503,7 @@ export class DatabaseStorage implements IStorage {
             eq(orderPieces.orderId, transfer.orderId),
             eq(orderPieces.area, transfer.fromArea)
           ));
+        isPartialTransfer = true;
       } else {
         await db.delete(orderPieces)
           .where(and(
@@ -490,21 +520,24 @@ export class DatabaseStorage implements IStorage {
       ));
 
     if (toAreaPieces.length > 0) {
+      const newPieces = toAreaPieces[0].pieces + transfer.pieces;
       await db.update(orderPieces)
         .set({ 
-          pieces: toAreaPieces[0].pieces + transfer.pieces, 
+          pieces: newPieces, 
           updatedAt: new Date() 
         })
         .where(and(
           eq(orderPieces.orderId, transfer.orderId),
           eq(orderPieces.area, transfer.toArea)
         ));
+      hasCompleteOrder = newPieces === transfer.totalPiezas;
     } else {
       await db.insert(orderPieces).values({
         orderId: transfer.orderId,
         area: transfer.toArea,
         pieces: transfer.pieces,
       });
+      hasCompleteOrder = transfer.pieces === transfer.totalPiezas;
     }
 
     const allOrderPieces = await db.select().from(orderPieces)
@@ -519,7 +552,7 @@ export class DatabaseStorage implements IStorage {
     await this.addOrderHistory(
       transfer.orderId,
       'transfer_accepted',
-      `Transferencia aceptada - ${transfer.pieces} piezas movidas de ${transfer.fromArea} a ${transfer.toArea}`,
+      `Transferencia aceptada - ${transfer.pieces} piezas movidas de ${transfer.fromArea} a ${transfer.toArea}${isPartialTransfer ? ' (Transferencia parcial)' : ''}`,
       processedBy,
       {
         fromArea: transfer.fromArea,
@@ -527,6 +560,47 @@ export class DatabaseStorage implements IStorage {
         pieces: transfer.pieces
       }
     );
+
+    // If it's a partial transfer and the receiving area doesn't have the complete order,
+    // send a special notification about pause restrictions
+    if (isPartialTransfer && !hasCompleteOrder) {
+      // Get the order information for the notification
+      const [order] = await db.select().from(orders)
+        .where(eq(orders.id, transfer.orderId));
+
+      // Get all users in the receiving area
+      const areaUsers = await db.select().from(users)
+        .where(eq(users.area, transfer.toArea));
+
+      // Get area names for display
+      const getAreaDisplayName = (area: string) => {
+        const names: Record<string, string> = {
+          corte: "Corte",
+          bordado: "Bordado",
+          ensamble: "Ensamble",
+          plancha: "Plancha/Empaque",
+          calidad: "Calidad",
+          envios: "Envíos",
+          admin: "Admin",
+          diseño: "Diseño",
+          operaciones: "Operaciones",
+          almacen: "Almacén",
+          patronaje: "Patronaje"
+        };
+        return names[area] || area;
+      };
+
+      // Send notification to all users in the receiving area
+      for (const user of areaUsers) {
+        await this.createNotification({
+          userId: user.id,
+          type: 'partial_transfer_warning',
+          title: '⚠️ TRANSFERENCIA PARCIAL',
+          message: `Has recibido ${transfer.pieces} piezas de ${transfer.totalPiezas} del pedido ${order?.folio || 'N/A'} desde ${getAreaDisplayName(transfer.fromArea)}. NO PUEDES PAUSAR este pedido hasta recibir la orden completa.`,
+          orderId: transfer.orderId,
+        });
+      }
+    }
   }
 
   async rejectTransfer(transferId: number, processedBy: number): Promise<void> {
@@ -841,7 +915,7 @@ export class DatabaseStorage implements IStorage {
       .set({
         status: action,
         processedBy: userId,
-        processedAt: new Date(),
+        processedAt: new Date()
       })
       .where(eq(repositionTransfers.id, transferId))
       .returning();
@@ -1606,17 +1680,17 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     // Función para normalizar fechas
     const normalizeDateString = (dateStr: string): string => {
       if (!dateStr) throw new Error('Fecha requerida');
-      
+
       // Si viene en formato ISO, extraer solo la fecha
       if (dateStr.includes('T')) {
         return dateStr.split('T')[0];
       }
-      
+
       // Si es un objeto Date serializado, intentar parsearlo
       if (dateStr.includes('-') && dateStr.length >= 10) {
         return dateStr.substring(0, 10);
       }
-      
+
       return dateStr;
     };
 
@@ -1627,7 +1701,7 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
 
     // Validar formato de fecha (YYYY-MM-DD)
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    
+
     if (!dateRegex.test(normalizedDate)) {
       console.log('Invalid date format received:', date, 'normalized:', normalizedDate);
       throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
@@ -1636,7 +1710,7 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       console.log('Invalid date formats received:', startDate, endDate, 'normalized:', normalizedStartDate, normalizedEndDate);
       throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
     }
-    
+
     // Usar las fechas normalizadas
     date = normalizedDate;
     startDate = normalizedStartDate;

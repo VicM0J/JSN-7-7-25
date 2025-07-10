@@ -102,6 +102,7 @@ export default function OrdersPage() {
         title: "Error al pausar pedido",
         description: error.message,
         variant: "destructive",
+        duration: 8000, // Longer duration for partial transfer messages
       });
     },
   });

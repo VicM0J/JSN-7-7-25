@@ -1,11 +1,10 @@
-
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowRight, CheckCircle, Info, Clock, Bell, Package, RefreshCw, Plus, X, XCircle, Trash2, BellRing, Settings } from "lucide-react";
+import { ArrowRight, CheckCircle, Info, Clock, Bell, Package, RefreshCw, Plus, X, XCircle, Trash2, BellRing, Settings, AlertTriangle } from "lucide-react";
 import { type Transfer } from "@shared/schema";
 import { useState } from "react";
 
@@ -17,7 +16,7 @@ interface NotificationsPanelProps {
 export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
 
   const { data: pendingTransfers = [] } = useQuery<Transfer[]>({
     queryKey: ["/api/transfers/pending"],
@@ -42,7 +41,8 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
           n.type === 'reposition_rejected' ||
           n.type === 'reposition_completed' ||
           n.type === 'reposition_deleted' ||
-          n.type === 'completion_approval_needed'
+          n.type === 'completion_approval_needed' ||
+          n.type === 'partial_transfer_warning'
         )
       );
     },
@@ -121,11 +121,11 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
     const date = typeof dateInput === "string" 
       ? new Date(dateInput.endsWith('Z') ? dateInput : dateInput + 'Z')
       : dateInput;
-    
+
     const now = new Date();
     const mexicoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
     const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
-    
+
     const diffMs = mexicoNow.getTime() - mexicoDate.getTime();
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMinutes / 60);
@@ -182,6 +182,8 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
         return <Package className="w-4 h-4" />;
       case 'completion_approval_needed':
         return <Clock className="w-4 h-4" />;
+      case 'partial_transfer_warning':
+        return <AlertTriangle className="w-4 h-4" />;
       default:
         return <Bell className="w-4 h-4" />;
     }
@@ -206,6 +208,7 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
       case 'reposition_deleted':
         return "bg-red-50 border-red-200 dark:bg-red-950/50 dark:border-red-800";
       case 'completion_approval_needed':
+      case 'partial_transfer_warning':
         return "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/50 dark:border-yellow-800";
       default:
         return "bg-muted border-border";
@@ -231,6 +234,7 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
       case 'reposition_deleted':
         return "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30";
       case 'completion_approval_needed':
+      case 'partial_transfer_warning':
         return "text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30";
       default:
         return "text-muted-foreground bg-muted";
@@ -239,7 +243,7 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
 
   const totalNotifications = repositionNotifications.length + pendingTransfers.length;
 
-  
+
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -269,8 +273,8 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
               </div>
             )}
           </SheetTitle>
-          
-          
+
+
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto py-6 space-y-4">
@@ -315,6 +319,13 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
                           <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-950/50 rounded-lg border border-yellow-200 dark:border-yellow-800">
                             <p className="text-xs text-yellow-800 dark:text-yellow-200 font-medium">
                               ⚠️ Solicitud de finalización pendiente de aprobación
+                            </p>
+                          </div>
+                        )}
+                        {notification.type === 'partial_transfer_warning' && (
+                          <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/50 rounded-lg border border-red-200 dark:border-red-800">
+                            <p className="text-xs text-red-800 dark:text-red-200 font-medium">
+                              🚫 RESTRICCIÓN: No puedes pausar este pedido hasta recibir la orden completa
                             </p>
                           </div>
                         )}
@@ -407,7 +418,7 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
                     <p className="text-sm text-muted-foreground mt-1">
                       Sistema de gestión listo para usar
                     </p>
-                    <p className="text-xs text-muted-foreground mt-2">Hace 2 días</p>
+                    <p className="text-xs text-muted-foreground mt-2">Ahora</p>
                   </div>
                 </div>
               </div>
