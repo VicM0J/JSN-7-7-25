@@ -449,6 +449,18 @@ export function RepositionList({ userArea }: { userArea: string }) {
       console.error('Error verificando timer:', error);
     }
 
+    // Obtener los datos de la reposición para verificar el tipo
+    const currentReposition = repositions.find(r => r.id === repositionId);
+    if (!currentReposition) {
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo encontrar la información de la reposición',
+        icon: 'error',
+        confirmButtonColor: '#8B5CF6'
+      });
+      return;
+    }
+
     const { value: toArea } = await Swal.fire({
       title: 'Transferir a Área',
       input: 'select',
@@ -467,8 +479,8 @@ export function RepositionList({ userArea }: { userArea: string }) {
     if (toArea) {
       let consumoTela = null;
 
-      // Si el área actual es Corte, pedir el consumo de tela
-      if (userArea === 'corte') {
+      // Si el área actual es Corte y es una reposición (no reproceso), pedir el consumo de tela
+      if (userArea === 'corte' && currentReposition.type === 'repocision') {
         const { value: consumo } = await Swal.fire({
           title: 'Consumo de Tela',
           text: 'Especifica la cantidad de tela utilizada (en metros)',

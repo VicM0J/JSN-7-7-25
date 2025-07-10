@@ -117,17 +117,27 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   };
 
   const formatDate = (dateInput: string | Date) => {
-    // Crear fecha en zona horaria de México
-    const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
-    const now = new Date();
+    // Asegurar que la fecha se interprete correctamente
+    const date = typeof dateInput === "string" 
+      ? new Date(dateInput.endsWith('Z') ? dateInput : dateInput + 'Z')
+      : dateInput;
     
-    // Convertir ambas fechas a hora de México para comparación correcta
-    const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    // Crear fecha actual en México
+    const now = new Date();
     const mexicoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
     
     const diffMs = mexicoNow.getTime() - mexicoDate.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
     const diffDays = Math.floor(diffHours / 24);
+
+    // Formatear la hora en zona horaria de México
+    const timeFormat = date.toLocaleString('es-ES', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      timeZone: 'America/Mexico_City'
+    });
 
     if (diffDays > 0) {
       return `Hace ${diffDays} día${diffDays > 1 ? "s" : ""} - ${date.toLocaleString('es-ES', { 
@@ -139,17 +149,11 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
         timeZone: 'America/Mexico_City'
       })}`;
     } else if (diffHours > 0) {
-      return `Hace ${diffHours} hora${diffHours > 1 ? "s" : ""} - ${date.toLocaleString('es-ES', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'America/Mexico_City'
-      })}`;
+      return `Hace ${diffHours} hora${diffHours > 1 ? "s" : ""} - ${timeFormat}`;
+    } else if (diffMinutes > 0) {
+      return `Hace ${diffMinutes} minuto${diffMinutes > 1 ? "s" : ""} - ${timeFormat}`;
     } else {
-      return `Hace unos minutos - ${date.toLocaleString('es-ES', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'America/Mexico_City'
-      })}`;
+      return `Hace unos segundos - ${timeFormat}`;
     }
   };
 

@@ -100,7 +100,9 @@ export function RepositionTracker({ repositionId, onClose }: RepositionTrackerPr
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('es-ES', {
+    // Asegurar que la fecha se interprete correctamente como UTC si no tiene zona horaria
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
+    return date.toLocaleString('es-ES', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -316,6 +318,43 @@ export function RepositionTracker({ repositionId, onClose }: RepositionTrackerPr
               </div>
             </CardContent>
           </Card>
+
+          {/* Historial de Movimientos */}
+          {trackingData.history && trackingData.history.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Historial de Movimientos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {trackingData.history.map((entry: any) => (
+                    <div key={entry.id} className="flex items-start gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-2 h-2 bg-purple-600 rounded-full mt-2"></div>
+                      <div className="flex-1">
+                        <p className="font-medium">{entry.description}</p>
+                        <p className="text-sm text-gray-600">
+                          {formatDate(entry.createdAt || entry.timestamp)}
+                        </p>
+                        {entry.userName && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Por: {entry.userName}
+                          </p>
+                        )}
+                        {entry.fromArea && entry.toArea && (
+                          <p className="text-sm text-purple-600">
+                            {getAreaDisplayName(entry.fromArea)} → {getAreaDisplayName(entry.toArea)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           
         </div>

@@ -33,6 +33,8 @@ interface RepositionDetail {
   createdAt: string;
   approvedAt?: string;
   consumoTela?: number;
+  tipoAccidente?: string;
+  areaCausanteDano?: string;
 }
 
 interface RepositionPiece {
@@ -317,94 +319,125 @@ export function RepositionDetail({
             </CardContent>
           </Card>
 
-          {/* Descripción del Daño */}
+          {/* Descripción del Daño - Diferente para reproceso vs reposición */}
           <Card>
             <CardHeader>
               <CardTitle>Descripción del Daño</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <p className="font-semibold text-gray-700">Causante del Daño</p>
-                <p>{reposition.causanteDano}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700">Descripción del Suceso</p>
-                <p className="whitespace-pre-wrap">{reposition.descripcionSuceso}</p>
-              </div>
+              {reposition.type === 'reproceso' ? (
+                <>
+                  {/* Campos específicos para reproceso */}
+                  <div>
+                    <p className="font-semibold text-gray-700">Nombre del Causante del Daño</p>
+                    <p>{reposition.causanteDano}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Tipo de Accidente</p>
+                    <p>{reposition.tipoAccidente || 'No especificado'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Área que causó el daño</p>
+                    <p className="capitalize">{reposition.areaCausanteDano || 'No especificado'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Área actual</p>
+                    <p className="capitalize">{reposition.currentArea}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Descripción del Suceso</p>
+                    <p className="whitespace-pre-wrap">{reposition.descripcionSuceso}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Campos para reposición (formato original) */}
+                  <div>
+                    <p className="font-semibold text-gray-700">Causante del Daño</p>
+                    <p>{reposition.causanteDano}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Descripción del Suceso</p>
+                    <p className="whitespace-pre-wrap">{reposition.descripcionSuceso}</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
-          {/* Información del Producto */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Información del Producto
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="font-semibold text-gray-700">Modelo de la Prenda</p>
-                <p>{reposition.modeloPrenda}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700">Tela</p>
-                <p>{reposition.tela}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700">Color</p>
-                <p>{reposition.color}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700">Tipo de Pieza</p>
-                <p>{reposition.tipoPieza}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700">Piezas Totales</p>
-                <p className="text-lg font-bold text-purple-600">
-                  {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700">Urgencia</p>
-                <Badge className={urgencyColors[reposition.urgencia as keyof typeof urgencyColors]}>
-                  {reposition.urgencia}
-                </Badge>
-              </div>
-              {pieces.some(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '') && (
-                <div className="md:col-span-2">
-                  <p className="font-semibold text-gray-700">Folios Originales</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {pieces
-                      .filter(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '')
-                      .map((piece, index) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                          {piece.folioOriginal}
-                        </Badge>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-              {reposition.consumoTela && (
+          {/* Información del Producto - Solo para reposiciones */}
+          {reposition.type !== 'reproceso' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5" />
+                  Información del Producto
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="font-semibold text-gray-700">Consumo de Tela</p>
-                  <p>{reposition.consumoTela} metros</p>
+                  <p className="font-semibold text-gray-700">Modelo de la Prenda</p>
+                  <p>{reposition.modeloPrenda}</p>
                 </div>
-              )}
-              {reposition.consumoTela && (
                 <div>
-                  <p className="font-semibold text-gray-700">Valor Estimado</p>
-                  <p className="text-lg font-bold text-green-600">
-                    ${(reposition.consumoTela * 60).toFixed(2)}
+                  <p className="font-semibold text-gray-700">Tela</p>
+                  <p>{reposition.tela}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-700">Color</p>
+                  <p>{reposition.color}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-700">Tipo de Pieza</p>
+                  <p>{reposition.tipoPieza}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-700">Piezas Totales</p>
+                  <p className="text-lg font-bold text-purple-600">
+                    {pieces.reduce((total, piece) => total + piece.cantidad, 0)} piezas
                   </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div>
+                  <p className="font-semibold text-gray-700">Urgencia</p>
+                  <Badge className={urgencyColors[reposition.urgencia as keyof typeof urgencyColors]}>
+                    {reposition.urgencia}
+                  </Badge>
+                </div>
+                {pieces.some(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '') && (
+                  <div className="md:col-span-2">
+                    <p className="font-semibold text-gray-700">Folios Originales</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {pieces
+                        .filter(piece => piece.folioOriginal && piece.folioOriginal !== null && piece.folioOriginal !== '')
+                        .map((piece, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {piece.folioOriginal}
+                          </Badge>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
+                {reposition.consumoTela && (
+                  <div>
+                    <p className="font-semibold text-gray-700">Consumo de Tela</p>
+                    <p>{reposition.consumoTela} metros</p>
+                  </div>
+                )}
+                {reposition.consumoTela && (
+                  <div>
+                    <p className="font-semibold text-gray-700">Valor Estimado</p>
+                    <p className="text-lg font-bold text-green-600">
+                      ${(reposition.consumoTela * 60).toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Piezas Solicitadas */}
-          {pieces.length > 0 && (
+          {/* Piezas Solicitadas - Solo para reposiciones */}
+          {reposition.type !== 'reproceso' && pieces.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -492,37 +525,7 @@ export function RepositionDetail({
             </Card>
           )}
 
-          {/* Historial */}
-          {history.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Historial de Movimientos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {history.map((entry: RepositionHistory) => (
-                    <div key={entry.id} className="flex items-start gap-4 p-3 bg-gray-50 rounded-lg">
-                      <div className="w-2 h-2 bg-purple-600 rounded-full mt-2"></div>
-                      <div className="flex-1">
-                        <p className="font-medium">{entry.description}</p>
-                        <p className="text-sm text-gray-600">
-                          {new Date(entry.createdAt).toLocaleString()}
-                        </p>
-                        {entry.fromArea && entry.toArea && (
-                          <p className="text-sm text-purple-600">
-                            {entry.fromArea} → {entry.toArea}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          
 
           {/* Documentos */}
           <Card>
