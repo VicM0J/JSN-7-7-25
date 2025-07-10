@@ -520,7 +520,7 @@ export default function OrdersPage() {
                 />
                 {pauseReason.trim().length > 0 && pauseReason.trim().length < 10 && (
                   <p className="text-sm text-red-600 mt-1">
-                    El motivo debe tener al menos 10 caracteres
+                    El motivo debe tener al menos 10 caracteres (actual: {pauseReason.trim().length})
                   </p>
                 )}
               </div>

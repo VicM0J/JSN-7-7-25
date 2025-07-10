@@ -143,7 +143,7 @@ export function OrdersTable({
 
   const pauseOrderMutation = useMutation({
     mutationFn: async ({ orderId, reason }: { orderId: number; reason: string }) => {
-      const res = await apiRequest("POST", `/api/orders/${orderId}/pause`, { body: JSON.stringify({ reason }) });
+      const res = await apiRequest("POST", `/api/orders/${orderId}/pause`, { reason });
       return await res.json();
     },
     onSuccess: () => {
@@ -484,7 +484,7 @@ export function OrdersTable({
               />
               {pauseReason.trim().length > 0 && pauseReason.trim().length < 10 && (
                 <p className="text-sm text-red-600 mt-1">
-                  El motivo debe tener al menos 10 caracteres
+                  El motivo debe tener al menos 10 caracteres (actual: {pauseReason.trim().length})
                 </p>
               )}
             </div>
