@@ -7,7 +7,7 @@ import { InferSelectModel, InferInsertModel } from "drizzle-orm";
 export const areaEnum = pgEnum("area", ["patronaje", "corte", "bordado", "ensamble", "plancha", "calidad", "operaciones", "admin", "almacen", "diseño", "envios"]);
 export const repositionTypeEnum = pgEnum("reposition_type", ["repocision", "reproceso"]);
 export const urgencyEnum = pgEnum("urgency", ["urgente", "intermedio", "poco_urgente"]);
-export const repositionStatusEnum = pgEnum("reposition_status", ["pendiente", "aprobado", "rechazado", "completado", "eliminado"]);
+export const repositionStatusEnum = pgEnum("reposition_status", ["pendiente", "aprobado", "rechazado", "completado", "eliminado", "cancelado"]);
 export const orderStatusEnum = pgEnum("order_status", ["active", "completed", "paused"]);
 export const transferStatusEnum = pgEnum("transfer_status", ["pending", "accepted", "rejected"]);
 export const notificationTypeEnum = pgEnum("notification_type", [
@@ -21,7 +21,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "reposition_rejected",
   "reposition_completed",
   "reposition_deleted",
-  "reposition_cancelled",
+  "reposition_canceled",
   "reposition_paused",
   "reposition_resumed",
   "reposition_received",
@@ -505,4 +505,4 @@ export type RepositionMaterial = InferSelectModel<typeof repositionMaterials>;
 export type InsertRepositionMaterial = InferInsertModel<typeof repositionMaterials>;
 export type RepositionType = "repocision" | "reproceso";
 export type Urgency = "urgente" | "intermedio" | "poco_urgente";
-export type RepositionStatus = "pendiente" | "aprobado" | "rechazado" | "completado" | "eliminado";
+export type RepositionStatus = "pendiente" | "aprobado" | "rechazado" | "completado" | "eliminado" | "cancelado";

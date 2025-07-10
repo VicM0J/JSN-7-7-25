@@ -938,7 +938,7 @@ export class DatabaseStorage implements IStorage {
 
     await db.update(repositions)
       .set({
-        status: 'cancelled' as RepositionStatus,
+        status: 'cancelado' as RepositionStatus,
         completedAt: new Date(),
       })
       .where(eq(repositions.id, repositionId));
@@ -947,7 +947,7 @@ export class DatabaseStorage implements IStorage {
 
     await this.addRepositionHistory(
       repositionId,
-      'cancelled',
+      'canceled',
       `Reposición cancelada. Motivo: ${reason}`,
       userId,
     );
@@ -958,7 +958,7 @@ export class DatabaseStorage implements IStorage {
     if (reposition.createdBy !== userId) {
       await this.createNotification({
         userId: reposition.createdBy,
-        type: 'reposition_cancelled',
+        type: 'reposition_canceled',
         title: 'Reposición Cancelada',
         message: `La reposición ${reposition.folio} ha sido cancelada. Motivo: ${reason}`,
         repositionId: repositionId,

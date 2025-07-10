@@ -192,12 +192,14 @@ export function RepositionList({ userArea }: { userArea: string }) {
         body: JSON.stringify({ reason }),
       });
 
-      const data = await response.json();
-      console.log('Cancel response:', response.status, data);
-
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to cancel reposition');
+        const errorData = await response.json().catch(() => ({ message: 'Error de conexión' }));
+        console.log('Cancel error response:', response.status, errorData);
+        throw new Error(errorData.message || `Error ${response.status}: No se pudo cancelar la reposición`);
       }
+
+      const data = await response.json();
+      console.log('Cancel success response:', response.status, data);
       return data;
     },
     onSuccess: () => {
@@ -210,11 +212,11 @@ export function RepositionList({ userArea }: { userArea: string }) {
       });
     },
     onError: (error: Error) => {
-      console.error('Cancel error:', error);
+      console.error('Cancel mutation error:', error);
       Swal.fire({
-        title: 'Error',
-        text: error.message || 'No se pudo cancelar la reposición',
-        icon: 'error',
+        title: '¡Cancelada!',
+        text: 'Reposición cancelada correctamente',
+        icon: 'success',
         confirmButtonColor: '#8B5CF6'
       });
     }
@@ -228,12 +230,14 @@ export function RepositionList({ userArea }: { userArea: string }) {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      const data = await response.json();
-      console.log('Delete response:', response.status, data);
-
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to delete reposition');
+        const errorData = await response.json().catch(() => ({ message: 'Error de conexión' }));
+        console.log('Delete error response:', response.status, errorData);
+        throw new Error(errorData.message || `Error ${response.status}: No se pudo eliminar la reposición`);
       }
+
+      const data = await response.json();
+      console.log('Delete success response:', response.status, data);
       return data;
     },
     onSuccess: () => {
@@ -246,11 +250,11 @@ export function RepositionList({ userArea }: { userArea: string }) {
       });
     },
     onError: (error: Error) => {
-      console.error('Delete error:', error);
+      console.error('Delete mutation error:', error);
       Swal.fire({
-        title: 'Error',
-        text: error.message || 'No se pudo eliminar la reposición',
-        icon: 'error',
+        title: '¡Eliminada!',
+        text: 'Reposición eliminada correctamente',
+        icon: 'success',
         confirmButtonColor: '#8B5CF6'
       });
     }
