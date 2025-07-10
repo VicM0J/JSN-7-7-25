@@ -1,6 +1,23 @@
+
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuBadge,
+  SidebarSeparator,
+  SidebarProvider
+} from "@/components/ui/sidebar";
 import { 
   Factory, 
   Home, 
@@ -13,31 +30,34 @@ import {
   User,
   FileEdit,
   BarChart3,
-  Calendar
+  Calendar,
+  MessageSquare,
+  FileX
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 
-interface SidebarProps {
+interface CustomSidebarProps {
   onShowNotifications: () => void;
   onCreateOrder: () => void;
+  onCreateReposition: () => void;
 }
 
-export function Sidebar({ onShowNotifications, onCreateOrder }: SidebarProps) {
+export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateReposition }: CustomSidebarProps) {
   const { user, logoutMutation } = useAuth();
   const [location, setLocation] = useLocation();
 
   const { data: pendingTransfers = [] } = useQuery<any[]>({
     queryKey: ["/api/transfers/pending"],
     enabled: !!user,
-    refetchInterval: 10000, // Refetch cada 10 segundos
+    refetchInterval: 10000,
     refetchOnWindowFocus: true,
   });
 
   const { data: repositionNotifications = [] } = useQuery({
     queryKey: ["/api/notifications"],
     enabled: !!user,
-    refetchInterval: 10000, // Refetch cada 10 segundos
+    refetchInterval: 10000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const res = await fetch('/api/notifications', {
@@ -48,8 +68,6 @@ export function Sidebar({ onShowNotifications, onCreateOrder }: SidebarProps) {
         return [];
       }
       const allNotifications = await res.json();
-      console.log('All notifications:', allNotifications);
-      // Filtrar solo notificaciones de reposiciones no leídas
       const filteredNotifications = allNotifications.filter((n: any) => 
         !n.read && (
           n.type?.includes('reposition') || 
@@ -63,12 +81,10 @@ export function Sidebar({ onShowNotifications, onCreateOrder }: SidebarProps) {
           n.type === 'completion_approval_needed'
         )
       );
-      console.log('Filtered reposition notifications:', filteredNotifications);
       return filteredNotifications;
     },
   });
 
-  // Query para contar reposiciones pendientes
   const { data: pendingRepositions = [] } = useQuery({
     queryKey: ["/api/repositions/pending-count"],
     enabled: !!user && (user.area === 'admin' || user.area === 'envios' || user.area === 'operaciones'),
@@ -85,6 +101,7 @@ export function Sidebar({ onShowNotifications, onCreateOrder }: SidebarProps) {
   });
 
   const canCreateOrders = user?.area === 'corte' || user?.area === 'admin';
+  const canCreateRepositions = user?.area === 'calidad' || user?.area === 'admin';
   const isAdmin = user?.area === 'admin';
 
   const getAreaDisplayName = (area: string) => {
@@ -103,197 +120,296 @@ export function Sidebar({ onShowNotifications, onCreateOrder }: SidebarProps) {
     return names[area] || area;
   };
 
+  const getUserInitials = (name: string) => {
+    if (!name) return "U";
+    const words = name.trim().split(' ');
+    if (words.length === 1) {
+      return words[0].charAt(0).toUpperCase();
+    }
+    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+  };
+
+  const getAreaColor = (area: string) => {
+    const colors: Record<string, string> = {
+      corte: "bg-[#de8fd9] text-[#233154]",
+      bordado: "bg-[#8c69a5] text-white",
+      ensamble: "bg-[#504b78] text-white",
+      plancha: "bg-[#f8bbed] text-[#233154]",
+      calidad: "bg-[#233154] text-white",
+      envios: "bg-[#8c69a5] text-white",
+      admin: "bg-[#504b78] text-white",
+      operaciones: "bg-[#8c69a5] text-white",
+      almacen: "bg-[#504b78] text-white",
+      diseño: "bg-[#de8fd9] text-[#233154]"
+    };
+    return colors[area] || "bg-gray-500 text-white";
+  };
+
   return (
-    <aside className="w-64 bg-white shadow-lg fixed h-full z-10">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F2F2F2' }}>
-            <img src="../../../public/logo.svg" alt="Fábrica" className="w-10 h-10" />
+    <Sidebar variant="inset" className="border-r-0">
+      <SidebarHeader className="border-b">
+        <div className="flex items-center gap-3 px-2 py-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#8c69a5] to-[#504b78] shadow-md">
+            <Factory className="h-7 w-7 text-white" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">JASANA</h1>
-            <p className="text-sm text-gray-500">Sistema de Pedidos</p>
-          </div>
-        </div>
-      </div>
-
-      {/*Info del usuario */}
-      <div className="p-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-            <User className="text-white text-sm" />
-          </div>
-          <div>
-            <p className="font-semibold text-gray-800">{user?.name}</p>
-            <p className="text-sm text-gray-500">
-              Área: {user?.area ? getAreaDisplayName(user.area) : ''}
-            </p>
-            <a
-                href={`msteams:/l/chat/0/0?users=${user?.username}`}
-            >
-            <button className="mt-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
-              Chatear en Teams
-            </button>
-            </a>
-
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-[#8c69a5] to-[#504b78] bg-clip-text text-transparent">
+              JASANA
+            </h1>
+            <p className="text-xs text-muted-foreground">Sistema de Pedidos</p>
           </div>
         </div>
-      </div>
-
-      {/* Menu de navegacion*/}
-      <nav className="p-4">
-        <ul className="space-y-2">
-          <li>
-            <Button 
-              variant="ghost" 
-              className={`w-full justify-start ${location === '/' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-              onClick={() => setLocation('/')}
-            >
-              <Home className="mr-3 h-4 w-4" />
-              Tablero
-            </Button>
-          </li>
-          <li>
-            <Button 
-              variant="ghost" 
-              className={`w-full justify-start ${location === '/orders' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-              onClick={() => setLocation('/orders')}
-            >
-              <Package className="mr-3 h-4 w-4" />
-              Pedidos
-            </Button>
-          </li>
-          <li>
-            <Button 
-              variant="ghost" 
-              className="w-full justify-start relative"
-              onClick={onShowNotifications}
-            >
-              <Bell className="mr-3 h-4 w-4" />
-              Notificaciones
-              {pendingTransfers.length > 0 && (
-                <Badge 
-                  variant="destructive" 
-                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-                >
-                  {pendingTransfers.length}
+        
+        {/* User Profile Card */}
+        <div className="mx-2 mb-2 rounded-lg border bg-card p-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10 ring-2 ring-offset-2 ring-offset-background ring-primary/20">
+              <AvatarImage src="" alt={user?.name || ""} />
+              <AvatarFallback className={`font-semibold text-sm ${getAreaColor(user?.area || '')}`}>
+                {getUserInitials(user?.name || "")}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{user?.name}</p>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className={`text-xs px-2 py-0.5 ${getAreaColor(user?.area || '')}`}>
+                  {user?.area ? getAreaDisplayName(user.area) : ''}
                 </Badge>
-              )}
+              </div>
+            </div>
+          </div>
+          <a href={`msteams:/l/chat/0/0?users=${user?.username}`} className="block mt-3">
+            <Button size="sm" className="w-full h-8 text-xs bg-gradient-to-r from-[#8c69a5] to-[#504b78] hover:from-[#7a5d93] hover:to-[#453c6a]">
+              <MessageSquare className="mr-2 h-3 w-3" />
+              Chatear en Teams
             </Button>
-          </li>
-          <li>
-            <Button 
-              variant="ghost" 
-              className={`w-full justify-start relative ${location === '/repositions' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-              onClick={() => setLocation('/repositions')}
-            >
-              <FileEdit className="mr-3 h-4 w-4" />
-              Reposiciones
-              {(repositionNotifications.length > 0 || pendingRepositions.length > 0) && (
-                <div className="absolute -top-1 -right-1 flex gap-1">
-                  {repositionNotifications.length > 0 && (
-                    <Badge 
-                      variant="destructive" 
-                      className="h-5 w-5 flex items-center justify-center p-0 text-xs"
-                      title="Notificaciones de reposición"
-                    >
-                      {repositionNotifications.length}
-                    </Badge>
+          </a>
+        </div>
+      </SidebarHeader>
+      
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Navegación Principal
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => setLocation('/')}
+                  isActive={location === '/'}
+                  className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
+                    location === '/' 
+                      ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                      : ''
+                  }`}
+                >
+                  <Home className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                  <span className="transition-colors duration-200">Tablero</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => setLocation('/orders')}
+                  isActive={location === '/orders'}
+                  className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
+                    location === '/orders' 
+                      ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                      : ''
+                  }`}
+                >
+                  <Package className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                  <span className="transition-colors duration-200">Pedidos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={onShowNotifications}
+                  className="h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm group"
+                >
+                  <Bell className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 group-hover:rotate-12" />
+                  <span className="transition-colors duration-200">Notificaciones</span>
+                  {pendingTransfers.length > 0 && (
+                    <SidebarMenuBadge className="bg-destructive text-destructive-foreground transition-transform duration-200 group-hover:scale-110">
+                      {pendingTransfers.length}
+                    </SidebarMenuBadge>
                   )}
-                  {pendingRepositions.length > 0 && (user?.area === 'admin' || user?.area === 'envios' || user?.area === 'operaciones') && (
-                    <Badge 
-                      variant="secondary" 
-                      className="h-5 w-5 flex items-center justify-center p-0 text-xs bg-orange-500 text-white hover:bg-orange-600"
-                      title="Reposiciones pendientes de aprobación"
-                    >
-                      {pendingRepositions.length}
-                    </Badge>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => setLocation('/repositions')}
+                  isActive={location === '/repositions'}
+                  className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm group ${
+                    location === '/repositions' 
+                      ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                      : ''
+                  }`}
+                >
+                  <FileEdit className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                  <span className="transition-colors duration-200">Reposiciones</span>
+                  {(repositionNotifications.length > 0 || pendingRepositions.length > 0) && (
+                    <div className="flex gap-1">
+                      {repositionNotifications.length > 0 && (
+                        <SidebarMenuBadge className="bg-destructive text-destructive-foreground transition-transform duration-200 group-hover:scale-110">
+                          {repositionNotifications.length}
+                        </SidebarMenuBadge>
+                      )}
+                      {pendingRepositions.length > 0 && (user?.area === 'admin' || user?.area === 'envios' || user?.area === 'operaciones') && (
+                        <SidebarMenuBadge className="bg-orange-500 text-white transition-transform duration-200 group-hover:scale-110">
+                          {pendingRepositions.length}
+                        </SidebarMenuBadge>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-            </Button>
-          </li>
-          <li>
-            <Button 
-              variant="ghost" 
-              className={`w-full justify-start ${location === '/history' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-              onClick={() => setLocation('/history')}
-            >
-              <History className="mr-3 h-4 w-4" />
-              Historial
-            </Button>
-          </li>
-          {/* <li>
-             <Button 
-              variant="ghost" 
-              className={`w-full justify-start ${location === '/reports' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-              onClick={() => setLocation('/reports')}
-            >
-              <BarChart3 className="mr-3 h-4 w-4" />
-              Reportes
-            </Button>
-          </li> */}
-          <li>
-            <Button 
-              variant="ghost" 
-              className={`w-full justify-start ${location === '/agenda' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-              onClick={() => setLocation('/agenda')}
-            >
-              <Calendar className="mr-3 h-4 w-4" />
-              Agenda
-            </Button>
-          </li>
-          {canCreateOrders && (
-            <li>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start"
-                onClick={onCreateOrder}
-              >
-                <Plus className="mr-3 h-4 w-4" />
-                Crear Pedido
-              </Button>
-            </li>
-          )}
-          {isAdmin && (
-            <li>
-              <Button 
-                variant="ghost" 
-                className={`w-full justify-start ${location === '/admin' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-                onClick={() => setLocation('/admin')}
-              >
-                <Settings className="mr-3 h-4 w-4" />
-                Administración
-              </Button>
-            </li>
-          )}
-           {isAdmin && (
-            <li>
-              <Button 
-                variant="ghost" 
-                className={`w-full justify-start ${location === '/metrics' ? 'bg-primary text-white hover:bg-primary/90' : ''}`}
-                onClick={() => setLocation('/metrics')}
-              >
-                <BarChart3 className="mr-3 h-4 w-4" />
-                Métricas
-              </Button>
-            </li>
-          )}
-        </ul>
-      </nav>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => setLocation('/history')}
+                  isActive={location === '/history'}
+                  className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
+                    location === '/history' 
+                      ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                      : ''
+                  }`}
+                >
+                  <History className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                  <span className="transition-colors duration-200">Historial</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => setLocation('/agenda')}
+                  isActive={location === '/agenda'}
+                  className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
+                    location === '/agenda' 
+                      ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                      : ''
+                  }`}
+                >
+                  <Calendar className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                  <span className="transition-colors duration-200">Agenda</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-      {/* Cerar sesion */}
-      <div className="absolute bottom-4 left-4 right-4">
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start"
-          onClick={() => logoutMutation.mutate()}
-          disabled={logoutMutation.isPending}
-        >
-          <LogOut className="mr-3 h-4 w-4" />
-          Cerrar Sesión
-        </Button>
-      </div>
-    </aside>
+        {(canCreateOrders || canCreateRepositions) && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Acciones Rápidas
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {canCreateOrders && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        onClick={onCreateOrder}
+                        className="h-10 bg-gradient-to-r from-[#8c69a5]/10 to-[#504b78]/10 hover:from-[#8c69a5]/20 hover:to-[#504b78]/20 border border-[#8c69a5]/20 transition-all duration-200 hover:scale-[1.02] hover:shadow-md group"
+                      >
+                        <Plus className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 group-hover:rotate-90" />
+                        <span className="transition-colors duration-200">Crear Pedido</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  
+                  {canCreateRepositions && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        onClick={onCreateReposition}
+                        className="h-10 bg-gradient-to-r from-[#de8fd9]/10 to-[#f8bbed]/10 hover:from-[#de8fd9]/20 hover:to-[#f8bbed]/20 border border-[#de8fd9]/20 transition-all duration-200 hover:scale-[1.02] hover:shadow-md group"
+                      >
+                        <FileX className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                        <span className="transition-colors duration-200">Crear Reposición</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
+
+        {isAdmin && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Administración
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      onClick={() => setLocation('/admin')}
+                      isActive={location === '/admin'}
+                      className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm group ${
+                        location === '/admin' 
+                          ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                          : ''
+                      }`}
+                    >
+                      <Settings className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 group-hover:rotate-90" />
+                      <span className="transition-colors duration-200">Administración</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      onClick={() => setLocation('/metrics')}
+                      isActive={location === '/metrics'}
+                      className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
+                        location === '/metrics' 
+                          ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                          : ''
+                      }`}
+                    >
+                      <BarChart3 className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                      <span className="transition-colors duration-200">Métricas</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
+      </SidebarContent>
+      
+      <SidebarFooter className="border-t">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+              className="h-10 text-muted-foreground hover:text-foreground transition-all duration-200 hover:bg-destructive/10 hover:scale-[1.02] hover:shadow-sm group"
+            >
+              <LogOut className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 group-hover:-translate-x-1" />
+              <span className="transition-colors duration-200">Cerrar Sesión</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
+
+// Componente wrapper para usar con SidebarProvider
+export function SidebarWrapper({ onShowNotifications, onCreateOrder, onCreateReposition }: CustomSidebarProps) {
+  return (
+    <SidebarProvider>
+      <CustomSidebar onShowNotifications={onShowNotifications} onCreateOrder={onCreateOrder} onCreateReposition={onCreateReposition} />
+    </SidebarProvider>
+  );
+}
+
+// Exportar el componente principal con el nombre original para compatibilidad
+export { SidebarWrapper as Sidebar };

@@ -1,12 +1,13 @@
+
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowRight, CheckCircle, Info, Clock, Bell, Package, RefreshCw, Plus, X, XCircle, Trash2 } from "lucide-react";
+import { ArrowRight, CheckCircle, Info, Clock, Bell, Package, RefreshCw, Plus, X, XCircle, Trash2, BellRing, Settings } from "lucide-react";
 import { type Transfer } from "@shared/schema";
-import clsx from "clsx";
+import { useState } from "react";
 
 interface NotificationsPanelProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface NotificationsPanelProps {
 export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
 
   const { data: pendingTransfers = [] } = useQuery<Transfer[]>({
     queryKey: ["/api/transfers/pending"],
@@ -25,12 +27,11 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   const { data: repositionNotifications = [] } = useQuery({
     queryKey: ["/api/notifications"],
     enabled: open,
-    refetchInterval: 2000, // Refrescar cada 2 segundos cuando el panel está abierto
+    refetchInterval: 2000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/notifications");
       const allNotifications = await res.json();
-      // Filtrar solo notificaciones de reposiciones no leídas
       return allNotifications.filter((n: any) => 
         !n.read && (
           n.type?.includes('reposition') || 
@@ -117,12 +118,10 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   };
 
   const formatDate = (dateInput: string | Date) => {
-    // Asegurar que la fecha se interprete correctamente
     const date = typeof dateInput === "string" 
       ? new Date(dateInput.endsWith('Z') ? dateInput : dateInput + 'Z')
       : dateInput;
     
-    // Crear fecha actual en México
     const now = new Date();
     const mexicoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
     const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
@@ -132,7 +131,6 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
     const diffHours = Math.floor(diffMinutes / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    // Formatear la hora en zona horaria de México
     const timeFormat = date.toLocaleString('es-ES', { 
       hour: '2-digit', 
       minute: '2-digit',
@@ -160,175 +158,271 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'transfer':
-        return <ArrowRight className="w-4 h-4 text-blue-600" />;
+        return <ArrowRight className="w-4 h-4" />;
       case 'order_completed':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return <CheckCircle className="w-4 h-4" />;
       case 'order_created':
-        return <Plus className="w-4 h-4 text-purple-600" />;
+        return <Plus className="w-4 h-4" />;
       case 'new_reposition':
       case 'reposition_created':
-        return <Plus className="w-4 h-4 text-purple-600" />;
+        return <Plus className="w-4 h-4" />;
       case 'reposition_approved':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return <CheckCircle className="w-4 h-4" />;
       case 'reposition_rejected':
-        return <XCircle className="w-4 h-4 text-red-600" />;
+        return <XCircle className="w-4 h-4" />;
       case 'reposition_completed':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return <CheckCircle className="w-4 h-4" />;
       case 'reposition_deleted':
-        return <Trash2 className="w-4 h-4 text-red-600" />;
+        return <Trash2 className="w-4 h-4" />;
       case 'reposition_transfer':
-        return <ArrowRight className="w-4 h-4 text-blue-600" />;
+        return <ArrowRight className="w-4 h-4" />;
       case 'transfer_processed':
-        return <RefreshCw className="w-4 h-4 text-blue-600" />;
+        return <RefreshCw className="w-4 h-4" />;
       case 'reposition_received':
-        return <Package className="w-4 h-4 text-green-600" />;
+        return <Package className="w-4 h-4" />;
       case 'completion_approval_needed':
-        return <Clock className="w-4 h-4 text-yellow-600" />;
+        return <Clock className="w-4 h-4" />;
       default:
-        return <Bell className="w-4 h-4 text-gray-600" />;
+        return <Bell className="w-4 h-4" />;
     }
   };
 
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'transfer':
+      case 'reposition_transfer':
+      case 'transfer_processed':
+        return "bg-blue-50 border-blue-200 dark:bg-blue-950/50 dark:border-blue-800";
+      case 'order_completed':
+      case 'reposition_approved':
+      case 'reposition_completed':
+      case 'reposition_received':
+        return "bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-800";
+      case 'order_created':
+      case 'new_reposition':
+      case 'reposition_created':
+        return "bg-purple-50 border-purple-200 dark:bg-purple-950/50 dark:border-purple-800";
+      case 'reposition_rejected':
+      case 'reposition_deleted':
+        return "bg-red-50 border-red-200 dark:bg-red-950/50 dark:border-red-800";
+      case 'completion_approval_needed':
+        return "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/50 dark:border-yellow-800";
+      default:
+        return "bg-muted border-border";
+    }
+  };
+
+  const getIconColor = (type: string) => {
+    switch (type) {
+      case 'transfer':
+      case 'reposition_transfer':
+      case 'transfer_processed':
+        return "text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30";
+      case 'order_completed':
+      case 'reposition_approved':
+      case 'reposition_completed':
+      case 'reposition_received':
+        return "text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30";
+      case 'order_created':
+      case 'new_reposition':
+      case 'reposition_created':
+        return "text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30";
+      case 'reposition_rejected':
+      case 'reposition_deleted':
+        return "text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30";
+      case 'completion_approval_needed':
+        return "text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30";
+      default:
+        return "text-muted-foreground bg-muted";
+    }
+  };
+
+  const totalNotifications = repositionNotifications.length + pendingTransfers.length;
+
+  
+
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-96 bg-white/60 backdrop-blur-lg border-l border-gray-200 dark:bg-gray-900/70 dark:border-gray-700 transition-all">
-        <SheetHeader>
-          <SheetTitle className="flex items-center justify-between text-xl font-semibold text-gray-800 dark:text-white">
-            <div className="flex items-center gap-2">
-              <Bell className="text-indigo-600" size={20} />
-              Notificaciones
+      <SheetContent className="w-[90vw] sm:w-[420px] md:w-[480px] lg:w-[540px] max-w-[600px] bg-background border-l border-border">
+        <SheetHeader className="border-b border-border pb-6">
+          <SheetTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="flex items-center justify-center w-10 h-10 bg-primary rounded-lg">
+                  <BellRing className="w-5 h-5 text-primary-foreground" />
+                </div>
+              </div>
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-foreground">
+                  Notificaciones
+                </h2>
+                <p className="text-sm text-muted-foreground font-normal">
+                  {totalNotifications > 0 ? `${totalNotifications} notificación${totalNotifications > 1 ? 'es' : ''} pendiente${totalNotifications > 1 ? 's' : ''}` : 'Todo al día'}
+                </p>
+              </div>
             </div>
-            {(pendingTransfers.length + repositionNotifications.length) > 0 && (
-              <Badge variant="destructive">{pendingTransfers.length + repositionNotifications.length}</Badge>
+            {totalNotifications > 0 && (
+              <div className="relative">
+                <Badge className="bg-destructive text-destructive-foreground border-0 shadow-sm">
+                  {totalNotifications}
+                </Badge>
+              </div>
             )}
           </SheetTitle>
+          
+          
         </SheetHeader>
 
-        <div className="mt-6 space-y-6 overflow-y-auto h-full pb-24 custom-scroll">
+        <div className="flex-1 overflow-y-auto py-6 space-y-4">
           {repositionNotifications.length > 0 && (
-            <>
-              <p className="text-sm font-medium text-gray-500">Reposiciones</p>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-primary rounded-full"></div>
+                <h3 className="text-sm font-semibold text-foreground">Reposiciones</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {repositionNotifications.length}
+                </Badge>
+              </div>
               {repositionNotifications.map((notification: any) => (
                 <div
                   key={notification.id}
-                  className="bg-white/80 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md rounded-xl p-4 transition-all duration-300 ease-out hover:shadow-xl animate-fade-in cursor-pointer"
+                  className={`relative overflow-hidden rounded-lg border ${getNotificationColor(notification.type)} transition-all duration-200 hover:shadow-md cursor-pointer group`}
                   onClick={() => markNotificationReadMutation.mutate(notification.id)}
                 >
-                  <div className="flex items-start space-x-3">
-                    <div className="w-9 h-9 bg-purple-100 rounded-full flex items-center justify-center">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-800 dark:text-gray-100">
-                        {notification.title}
-                      </h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                        {notification.message}
-                      </p>
-                      <div className="flex items-center justify-between mt-2">
-                        {notification.repositionId && (
-                          <Badge variant="outline" className="text-xs">
-                            Reposición #{notification.repositionId}
-                          </Badge>
-                        )}
-                        <p className="text-xs text-gray-500">{formatDate(notification.createdAt)}</p>
+                  <div className="relative p-3 md:p-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 md:w-12 md:h-12 ${getIconColor(notification.type)} rounded-lg flex items-center justify-center`}>
+                        {getNotificationIcon(notification.type)}
                       </div>
-                      {notification.type === 'completion_approval_needed' && (
-                        <div className="mt-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
-                          <p className="text-xs text-yellow-800 font-medium">
-                            Solicitud de finalización pendiente de aprobación
-                          </p>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-foreground text-sm leading-tight">
+                          {notification.title}
+                        </h4>
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {notification.message}
+                        </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3">
+                          {notification.repositionId && (
+                            <Badge variant="outline" className="text-xs font-medium w-fit">
+                              Reposición #{notification.repositionId}
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(notification.createdAt)}
+                          </span>
                         </div>
-                      )}
+                        {notification.type === 'completion_approval_needed' && (
+                          <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-950/50 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                            <p className="text-xs text-yellow-800 dark:text-yellow-200 font-medium">
+                              ⚠️ Solicitud de finalización pendiente de aprobación
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               ))}
-              <hr className="border-t border-gray-300 dark:border-gray-600" />
-            </>
+            </div>
           )}
 
           {pendingTransfers.length > 0 && (
-            <>
-              <p className="text-sm font-medium text-gray-500">Transferencias Pendientes</p>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <h3 className="text-sm font-semibold text-foreground">Transferencias Pendientes</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {pendingTransfers.length}
+                </Badge>
+              </div>
               {pendingTransfers.map((transfer) => (
                 <div
                   key={transfer.id}
-                  className="bg-white/80 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md rounded-xl p-4 transition-all duration-300 ease-out hover:shadow-xl animate-fade-in"
+                  className="relative overflow-hidden rounded-lg border bg-blue-50 border-blue-200 dark:bg-blue-950/50 dark:border-blue-800 transition-all duration-200 hover:shadow-md group"
                 >
-                  <div className="flex items-start space-x-3">
-                    <div className="w-9 h-9 bg-yellow-100 rounded-full flex items-center justify-center">
-                      <ArrowRight className="text-yellow-600" size={18} />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-800 dark:text-gray-100">
-                        {transfer.pieces} piezas desde {getAreaDisplayName(transfer.fromArea)}
-                      </h4>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(transfer.createdAt)}</p>
-                      <div className="flex items-center space-x-2 mt-3">
-                        <Button
-                          size="sm"
-                          className="rounded-full"
-                          onClick={() => acceptTransferMutation.mutate(transfer.id)}
-                          disabled={acceptTransferMutation.isPending}
-                        >
-                          Aceptar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="rounded-full"
-                          onClick={() => rejectTransferMutation.mutate(transfer.id)}
-                          disabled={rejectTransferMutation.isPending}
-                        >
-                          Rechazar
-                        </Button>
+                  <div className="relative p-3 md:p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center">
+                        <ArrowRight className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-foreground text-sm leading-tight">
+                          {transfer.pieces} piezas desde {getAreaDisplayName(transfer.fromArea)}
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDate(transfer.createdAt)}
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => acceptTransferMutation.mutate(transfer.id)}
+                            disabled={acceptTransferMutation.isPending}
+                          >
+                            {acceptTransferMutation.isPending ? (
+                              <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                            ) : (
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                            )}
+                            Aceptar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-8 px-3"
+                            onClick={() => rejectTransferMutation.mutate(transfer.id)}
+                            disabled={rejectTransferMutation.isPending}
+                          >
+                            {rejectTransferMutation.isPending ? (
+                              <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                            ) : (
+                              <XCircle className="w-3 h-3 mr-1" />
+                            )}
+                            Rechazar
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
-            </>
+            </div>
           )}
 
-          <hr className="border-t border-gray-300 dark:border-gray-600" />
+          {/* Notificaciones del sistema */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-muted-foreground rounded-full"></div>
+              <h3 className="text-sm font-semibold text-foreground">Sistema</h3>
+            </div>
 
-          <p className="text-sm font-medium text-gray-500">Sistema</p>
-
-          <div className="bg-blue-50 border border-blue-200 dark:border-blue-400 rounded-xl p-4">
-            <div className="flex items-start space-x-3">
-              <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center">
-                <Info className="text-blue-600" size={18} />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium text-gray-900 dark:text-gray-100">Sistema Actualizado</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                  Nuevas funcionalidades disponibles
-                </p>
-                <p className="text-xs text-gray-500 mt-2">Hace 1 día</p>
+            <div className="relative overflow-hidden rounded-lg border bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-800 transition-all duration-200 hover:shadow-md group">
+              <div className="relative p-3 md:p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-foreground text-sm">Bienvenido a JASANA</h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Sistema de gestión listo para usar
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">Hace 2 días</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-green-50 border border-green-200 dark:border-green-400 rounded-xl p-4">
-            <div className="flex items-start space-x-3">
-              <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="text-green-600" size={18} />
+          {totalNotifications === 0 && (
+            <div className="text-center py-12 md:py-16">
+              <div className="relative">
+                <div className="relative w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 bg-muted rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-10 h-10 md:w-12 md:h-12 text-green-500" />
+                </div>
               </div>
-              <div className="flex-1">
-                <h4 className="font-medium text-gray-900 dark:text-gray-100">Bienvenido a JASANA</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                  Sistema de gestión listo para usar
-                </p>
-                <p className="text-xs text-gray-500 mt-2">Hace 2 días</p>
-              </div>
-            </div>
-          </div>
-
-          {pendingTransfers.length === 0 && repositionNotifications.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <Clock size={48} className="mx-auto mb-4 text-gray-300" />
-              <p>No hay notificaciones pendientes</p>
+              <h3 className="text-lg font-semibold text-foreground mb-2">¡Todo al día!</h3>
+              <p className="text-sm text-muted-foreground">No tienes notificaciones pendientes</p>
             </div>
           )}
         </div>
