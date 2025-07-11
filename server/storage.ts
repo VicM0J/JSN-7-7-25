@@ -2615,7 +2615,6 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
   }
 
   async exportRequestAnalysis(): Promise<Buffer> {
-    const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Análisis de Solicitudes');
 
@@ -2639,6 +2638,18 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
       pattern: 'solid',
       fgColor: { argb: 'FFE6E6E6' }
     };
+
+    // Aplicar bordes a todas las celdas
+    worksheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+    });
 
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);

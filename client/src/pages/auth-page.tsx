@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +33,21 @@ export default function AuthPage() {
   if (user) {
     return <Redirect to="/" />;
   }
+
+  useEffect(() => {
+    const handleSwitchToRegister = () => {
+      if (!isRegisterMode) {
+        setIsFlipping(true);
+        setTimeout(() => {
+          setIsRegisterMode(true);
+          setTimeout(() => setIsFlipping(false), 300);
+        }, 300);
+      }
+    };
+
+    window.addEventListener('switchToRegister', handleSwitchToRegister);
+    return () => window.removeEventListener('switchToRegister', handleSwitchToRegister);
+  }, [isRegisterMode]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
