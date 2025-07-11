@@ -158,12 +158,14 @@ export function OrdersTable({
       setSelectedOrder(null);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error al pausar pedido",
-        description: error.message,
-        variant: "destructive",
-        duration: 8000, // Longer duration for partial transfer messages
-      });
+      Swal.fire({
+  icon: 'error',
+  title: 'No puedes pausar el pedido mientras otra área tiene piezas parciales.',
+  text: 'Espera a tener el pedido completo',
+  confirmButtonText: 'Entendido',
+  timer: 5000,
+  timerProgressBar: true
+});
     },
   });
 

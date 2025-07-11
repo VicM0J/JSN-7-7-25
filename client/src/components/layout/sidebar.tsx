@@ -181,7 +181,7 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
           <a href={`msteams:/l/chat/0/0?users=${user?.username}`} className="block mt-3">
             <Button size="sm" className="w-full h-8 text-xs bg-gradient-to-r from-[#8c69a5] to-[#504b78] hover:from-[#7a5d93] hover:to-[#453c6a]">
               <MessageSquare className="mr-2 h-3 w-3" />
-              Chatear en Teams
+              Teams
             </Button>
           </a>
         </div>

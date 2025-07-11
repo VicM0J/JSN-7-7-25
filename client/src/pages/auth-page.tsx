@@ -282,7 +282,7 @@ export default function AuthPage() {
                               <SelectItem value="patronaje">📐 Patronaje</SelectItem>
                               <SelectItem value="almacen">🏪 Almacén</SelectItem>
                               <SelectItem value="diseño">🎨 Diseño</SelectItem>
-                              <SelectItem value="admin">⚙️ Admin</SelectItem>
+                              <SelectItem value="admin">⚙️ Admin</SelectItem> 
                             </SelectContent>
                           </Select>
                         </div>
@@ -386,7 +386,7 @@ export default function AuthPage() {
               </Button>
               <Button
                 onClick={() => {
-                  window.open('https://teams.microsoft.com/l/chat/0/0?users=admin@empresa.com', '_blank');
+                  window.open(`msteams:/l/chat/0/0?users=${user?.username}`);
                 }}
                 className="flex-1 h-9 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] text-sm"
               >
