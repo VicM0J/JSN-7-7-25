@@ -115,6 +115,19 @@ export function TopBar({ onShowNotifications }: TopBarProps) {
     return colors[area] || "bg-gray-500 text-white";
   };
 
+  const getGreeting = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    if (hour >= 6 && hour < 12) {
+      return "Buenos días";
+    } else if (hour >= 12 && hour < 19) {
+      return "Buenas tardes";
+    } else {
+      return "Buenas noches";
+    }
+  };
+
   const totalNotifications = pendingTransfers.length + repositionNotifications.length;
 
   return (
@@ -125,7 +138,7 @@ export function TopBar({ onShowNotifications }: TopBarProps) {
           <div className="flex items-center gap-3">
             <div className="flex flex-col">
               <h1 className="text-lg font-bold bg-gradient-to-r from-[#8c69a5] to-[#504b78] bg-clip-text text-transparent">
-                {user?.name}
+                {getGreeting()}, {user?.name}
               </h1>
               <p className="text-xs text-muted-foreground">{user?.area ? getAreaDisplayName(user.area) : ''}</p>
             </div>
