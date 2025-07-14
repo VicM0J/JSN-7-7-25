@@ -12,14 +12,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, User, Lock, Users, Building2, Shield, RotateCcw, MessageSquare, ExternalLink } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Loader2,
+  User,
+  Lock,
+  Users,
+  Building2,
+  Shield,
+  MessageSquare,
+  ExternalLink,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
   const [, setLocation] = useLocation();
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [registerData, setRegisterData] = useState({
@@ -52,241 +71,303 @@ export default function AuthPage() {
     registerMutation.mutate(registerData);
   };
 
-  const toggleMode = () => {
-    setIsRegisterMode(!isRegisterMode);
+  const toggleToRegister = () => {
+    setIsRegisterMode(true);
+  };
+
+  const toggleToLogin = () => {
+    setIsRegisterMode(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 flex items-center justify-center p-4 relative overflow-hidden">
+<div className="h-screen grid place-items-center bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 p-4 relative overflow-hidden">
+
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-16 left-16 w-48 h-48 bg-gradient-to-r from-purple-300 to-indigo-300 rounded-full mix-blend-multiply filter blur-2xl opacity-40 animate-float"></div>
         <div className="absolute top-32 right-16 w-64 h-64 bg-gradient-to-r from-pink-300 to-purple-300 rounded-full mix-blend-multiply filter blur-2xl opacity-35 animate-float-delayed"></div>
         <div className="absolute -bottom-24 left-1/3 w-56 h-56 bg-gradient-to-r from-blue-300 to-cyan-300 rounded-full mix-blend-multiply filter blur-2xl opacity-45 animate-float-slow"></div>
+
+        {/* Additional background details */}
+        <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-gradient-to-r from-yellow-200 to-orange-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-40 h-40 bg-gradient-to-r from-green-200 to-teal-200 rounded-full mix-blend-multiply filter blur-xl opacity-25 animate-float-delayed"></div>
+        <div className="absolute top-3/4 left-1/2 w-36 h-36 bg-gradient-to-r from-rose-200 to-pink-200 rounded-full mix-blend-multiply filter blur-xl opacity-35 animate-float-slow"></div>
+
+        {/* Geometric shapes */}
+        <div className="absolute top-20 right-1/3 w-16 h-16 bg-gradient-to-br from-purple-400/20 to-indigo-400/20 transform rotate-45 animate-float opacity-20"></div>
+        <div className="absolute bottom-20 left-1/4 w-12 h-12 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 transform rotate-12 animate-float-delayed opacity-25"></div>
+        <div className="absolute top-1/2 right-20 w-20 h-20 bg-gradient-to-br from-pink-400/20 to-purple-400/20 transform -rotate-12 animate-float-slow opacity-20"></div>
+
+        {/* Small floating dots */}
+        <div className="absolute top-1/3 left-20 w-3 h-3 bg-purple-400/40 rounded-full animate-float"></div>
+        <div className="absolute bottom-1/3 right-20 w-2 h-2 bg-blue-400/40 rounded-full animate-float-delayed"></div>
+        <div className="absolute top-2/3 left-1/3 w-4 h-4 bg-pink-400/40 rounded-full animate-float-slow"></div>
+        <div className="absolute bottom-1/2 right-1/3 w-2 h-2 bg-indigo-400/40 rounded-full animate-float"></div>
       </div>
 
-      <div className="relative z-10 w-full max-w-md mx-auto">
-        {/* Logo y título */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-30 h-16 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl mb-4 transform hover:scale-105 transition-transform duration-300">
-            <img
-              src="/LogoJASANA.png"
-              alt="JASANA Logo"
-              className="w-15 h-15 object-contain"
-              draggable={false}
-            />
-          </div>
-          <p className="text-gray-600 font-medium text-sm">Sistema de Gestión de Pedidos</p>
-        </div>
+      <div className="relative z-10 w-full max-w-4xl mx-auto object-center">
+        {/* Contenedor principal con efecto deslizante */}
+        <div
+          className={`auth-container backdrop-blur-lg bg-white/20 shadow-2xl border border-purple-200/50 rounded-2xl overflow-hidden relative transition-all duration-700 ease-in-out ${isRegisterMode ? "register-active" : ""}`}
+        >
+          {/* Formulario de Registro */}
+          <div className="form-container register-container">
+            <form onSubmit={handleRegister} className="auth-form">
+              <div className="text-center mb-3">
+                <div>
+                  <img
+                    src="/LogoJASANA.png"
+                    alt="JASANA Logo"
+                    className="w-32 h-28 object-contain center mx-auto transform hover:scale-105 transition-transform duration-300"
+                    draggable={false}
+                  />
+                </div>
+                <p className="text-gray-600 font-medium text-xs mb-1">
+                  Sistema de Gestión de Pedidos
+                </p>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-4 flex items-center justify-center gap-2">
+                <Users className="w-6 h-6" />
+                Crear Cuenta
+              </h1>
 
-        <Card className="backdrop-blur-lg bg-white/80 shadow-2xl border border-purple-200/50 rounded-2xl overflow-hidden">
-          <CardHeader className="text-center pb-6 pt-6">
-            <CardTitle className="text-2xl font-bold mb-2 text-gray-800 flex items-center justify-center gap-2">
-              {isRegisterMode ? (
-                <>
-                  <Users className="w-6 h-6" />
-                  Crear Cuenta
-                </>
-              ) : (
-                <>
-                  <User className="w-6 h-6" />
-                  Iniciar Sesión
-                </>
-              )}
-            </CardTitle>
-            <p className="text-gray-600 text-sm">
-              {isRegisterMode 
-                ? "Complete los datos para registrarse" 
-                : "Ingrese sus credenciales para acceder"
-              }
-            </p>
-          </CardHeader>
-
-          <CardContent className="p-6 pt-0">
-            {!isRegisterMode ? (
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-username" className="text-gray-700 font-semibold flex items-center gap-2 text-sm">
-                    <User className="w-4 h-4" />
-                    Usuario
-                  </Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div className="input-container">
                   <Input
-                    id="login-username"
                     type="text"
-                    value={loginData.username}
-                    onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
+                    value={registerData.username}
+                    onChange={(e) =>
+                      setRegisterData({
+                        ...registerData,
+                        username: e.target.value,
+                      })
+                    }
                     required
-                    className="h-11 rounded-xl border border-purple-200 focus:border-purple-400 transition-all duration-300 text-sm px-4 bg-white/70 backdrop-blur-sm text-gray-800 placeholder:text-gray-500"
-                    placeholder="Ingrese su usuario"
+                    placeholder=" "
+                    className="auth-input"
                   />
+                  <Label className="auth-label">Usuario</Label>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="login-password" className="text-gray-700 font-semibold flex items-center gap-2 text-sm">
-                    <Lock className="w-4 h-4" />
-                    Contraseña
-                  </Label>
+                <div className="input-container">
                   <Input
-                    id="login-password"
-                    type="password"
-                    value={loginData.password}
-                    onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                    type={showRegisterPassword ? "text" : "password"}
+                    value={registerData.password}
+                    onChange={(e) =>
+                      setRegisterData({
+                        ...registerData,
+                        password: e.target.value,
+                      })
+                    }
                     required
-                    className="h-11 rounded-xl border border-purple-200 focus:border-purple-400 transition-all duration-300 text-sm px-4 bg-white/70 backdrop-blur-sm text-gray-800 placeholder:text-gray-500"
-                    placeholder="Ingrese su contraseña"
+                    placeholder=" "
+                    className="auth-input"
                   />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full h-11 bg-gradient-to-r from-purple-400 to-indigo-400 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] text-sm"
-                  disabled={loginMutation.isPending}
-                >
-                  {loginMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <User className="mr-2 h-4 w-4" />
-                  )}
-                  Iniciar Sesión
-                </Button>
-
-                <div className="text-center mt-3">
+                  <Label className="auth-label">Contraseña</Label>
                   <button
                     type="button"
-                    onClick={() => setShowForgotPassword(true)}
-                    className="text-gray-600 hover:text-gray-800 font-medium transition-colors duration-300 text-xs underline"
+                    className="password-toggle"
+                    onClick={() =>
+                      setShowRegisterPassword(!showRegisterPassword)
+                    }
                   >
-                    ¿Olvidaste tu contraseña?
+                    {showRegisterPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
-              </form>
-            ) : (
-              <form onSubmit={handleRegister} className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="register-username" className="text-gray-700 font-semibold flex items-center gap-1 text-xs">
-                      <User className="w-3 h-3" />
-                      Usuario
-                    </Label>
-                    <Input
-                      id="register-username"
-                      type="text"
-                      value={registerData.username}
-                      onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
-                      required
-                      className="h-9 rounded-lg border border-purple-200 focus:border-purple-400 transition-all duration-300 bg-white/70 backdrop-blur-sm text-gray-800 placeholder:text-gray-500 text-sm"
-                      placeholder="Usuario"
-                    />
-                  </div>
+              </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="register-password" className="text-gray-700 font-semibold flex items-center gap-1 text-xs">
-                      <Lock className="w-3 h-3" />
-                      Contraseña
-                    </Label>
-                    <Input
-                      id="register-password"
-                      type="password"
-                      value={registerData.password}
-                      onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                      required
-                      className="h-9 rounded-lg border border-purple-200 focus:border-purple-400 transition-all duration-300 bg-white/70 backdrop-blur-sm text-gray-800 placeholder:text-gray-500 text-sm"
-                      placeholder="Contraseña"
-                    />
-                  </div>
-                </div>
+              <div className="input-container mb-3">
+                <Input
+                  type="text"
+                  value={registerData.name}
+                  onChange={(e) =>
+                    setRegisterData({ ...registerData, name: e.target.value })
+                  }
+                  required
+                  placeholder=" "
+                  className="auth-input"
+                />
+                <Label className="auth-label">Nombre Completo</Label>
+              </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="register-name" className="text-gray-700 font-semibold flex items-center gap-1 text-xs">
-                    <Users className="w-3 h-3" />
-                    Nombre Completo
-                  </Label>
+              <div className="input-container mb-3">
+                <Select
+                  value={registerData.area}
+                  onValueChange={(value) =>
+                    setRegisterData({ ...registerData, area: value as any })
+                  }
+                >
+                  <SelectTrigger className="auth-input">
+                    <SelectValue placeholder="Seleccionar área" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg bg-white/95 backdrop-blur-lg border-purple-200">
+                    <SelectItem value="corte">✂️ Corte</SelectItem>
+                    <SelectItem value="bordado">🪡 Bordado</SelectItem>
+                    <SelectItem value="ensamble">🔧 Ensamble</SelectItem>
+                    <SelectItem value="plancha">👔 Plancha/Empaque</SelectItem>
+                    <SelectItem value="calidad">✅ Calidad</SelectItem>
+                    <SelectItem value="envios">📦 Envíos</SelectItem>
+                    <SelectItem value="patronaje">📐 Patronaje</SelectItem>
+                    <SelectItem value="almacen">🏪 Almacén</SelectItem>
+                    <SelectItem value="diseño">🎨 Diseño</SelectItem>
+                    <SelectItem value="admin">⚙️ Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {registerData.area && registerData.area !== "admin" && (
+                <div className="input-container mb-4">
                   <Input
-                    id="register-name"
-                    type="text"
-                    value={registerData.name}
-                    onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
+                    type="password"
+                    value={registerData.adminPassword}
+                    onChange={(e) =>
+                      setRegisterData({
+                        ...registerData,
+                        adminPassword: e.target.value,
+                      })
+                    }
                     required
-                    className="h-9 rounded-lg border border-purple-200 focus:border-purple-400 transition-all duration-300 bg-white/70 backdrop-blur-sm text-gray-800 placeholder:text-gray-500 text-sm"
-                    placeholder="Ingrese su nombre completo"
+                    placeholder=" "
+                    className="auth-input border-orange-300 focus:border-orange-400 bg-orange-100/50"
+                  />
+                  <Label className="auth-label text-orange-600">
+                    Contraseña de Admin
+                  </Label>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="auth-button"
+                disabled={registerMutation.isPending}
+              >
+                {registerMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Users className="mr-2 h-4 w-4" />
+                )}
+                Crear Cuenta
+              </Button>
+            </form>
+          </div>
+
+          {/* Formulario de Login */}
+          <div className="form-container login-container">
+            <form onSubmit={handleLogin} className="auth-form">
+              <div className="text-center mb-3">
+                <div >
+                  <img
+                    src="/LogoJASANA.png"
+                    alt="JASANA Logo"
+                    className="w-32 h-28 object-contain center mx-auto transform hover:scale-105 transition-transform duration-300"
+                    draggable={false}
                   />
                 </div>
+                <p className="text-gray-600 font-medium text-xs mb-1">
+                  Sistema de Gestión de Pedidos
+                </p>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-6 flex items-center justify-center gap-2">
+                <User className="w-6 h-6" />
+                Iniciar Sesión
+              </h1>
 
-                <div className="space-y-1">
-                  <Label htmlFor="register-area" className="text-gray-700 font-semibold flex items-center gap-1 text-xs">
-                    <Building2 className="w-3 h-3" />
-                    Área de Trabajo
-                  </Label>
-                  <Select
-                    value={registerData.area}
-                    onValueChange={(value) => setRegisterData({ ...registerData, area: value as any })}
-                  >
-                    <SelectTrigger className="h-9 rounded-lg border border-purple-200 focus:border-purple-400 bg-white/70 backdrop-blur-sm text-gray-800 text-sm">
-                      <SelectValue placeholder="Seleccionar área" className="text-gray-500" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg bg-white/95 backdrop-blur-lg border-purple-200">
-                      <SelectItem value="corte">✂️ Corte</SelectItem>
-                      <SelectItem value="bordado">🪡 Bordado</SelectItem>
-                      <SelectItem value="ensamble">🔧 Ensamble</SelectItem>
-                      <SelectItem value="plancha">👔 Plancha/Empaque</SelectItem>
-                      <SelectItem value="calidad">✅ Calidad</SelectItem>
-                      <SelectItem value="envios">📦 Envíos</SelectItem>
-                      <SelectItem value="patronaje">📐 Patronaje</SelectItem>
-                      <SelectItem value="almacen">🏪 Almacén</SelectItem>
-                      <SelectItem value="diseño">🎨 Diseño</SelectItem>
-                      <SelectItem value="admin">⚙️ Admin</SelectItem> 
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="input-container mb-4">
+                <Input
+                  type="text"
+                  value={loginData.username}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, username: e.target.value })
+                  }
+                  required
+                  placeholder=" "
+                  className="auth-input"
+                />
+                <Label className="auth-label">Usuario</Label>
+              </div>
 
-                {registerData.area && registerData.area !== "admin" && (
-                  <div className="space-y-1">
-                    <Label htmlFor="admin-password" className="text-gray-700 font-semibold flex items-center gap-1 text-xs">
-                      <Shield className="w-3 h-3" />
-                      Contraseña de Admin
-                    </Label>
-                    <Input
-                      id="admin-password"
-                      type="password"
-                      value={registerData.adminPassword}
-                      onChange={(e) => setRegisterData({ ...registerData, adminPassword: e.target.value })}
-                      required
-                      placeholder="Requerida para registrarse"
-                      className="h-9 rounded-lg border border-orange-300 focus:border-orange-400 transition-all duration-300 bg-orange-100/50 backdrop-blur-sm text-gray-800 placeholder:text-orange-600 text-sm"
-                    />
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  className="w-full h-11 bg-gradient-to-r from-purple-400 to-indigo-400 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] text-sm"
-                  disabled={registerMutation.isPending}
+              <div className="input-container mb-4">
+                <Input
+                  type={showLoginPassword ? "text" : "password"}
+                  value={loginData.password}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, password: e.target.value })
+                  }
+                  required
+                  placeholder=" "
+                  className="auth-input"
+                />
+                <Label className="auth-label">Contraseña</Label>
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
                 >
-                  {registerMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {showLoginPassword ? (
+                    <EyeOff className="w-4 h-4" />
                   ) : (
-                    <Users className="mr-2 h-4 w-4" />
+                    <Eye className="w-4 h-4" />
                   )}
-                  Crear Cuenta
-                </Button>
-              </form>
-            )}
+                </button>
+              </div>
 
-            <div className="mt-6 text-center">
               <button
                 type="button"
-                onClick={toggleMode}
-                className="group flex items-center gap-2 mx-auto text-gray-600 hover:text-gray-800 font-medium transition-all duration-300 px-4 py-2 rounded-lg hover:bg-purple-100/50 backdrop-blur-sm text-sm"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-gray-600 hover:text-purple-600 font-medium transition-colors duration-300 text-sm underline mb-4"
               >
-                <RotateCcw className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" />
-                {isRegisterMode 
-                  ? "¿Ya tienes cuenta? Inicia sesión" 
-                  : "¿No tienes cuenta? Regístrate"
-                }
+                ¿Olvidaste tu contraseña?
               </button>
+
+              <Button
+                type="submit"
+                className="auth-button"
+                disabled={loginMutation.isPending}
+              >
+                {loginMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <User className="mr-2 h-4 w-4" />
+                )}
+                Iniciar Sesión
+              </Button>
+            </form>
+          </div>
+
+          {/* Panel superpuesto deslizante */}
+          <div className="overlay-container">
+            <div className="overlay">
+              <div className="overlay-panel overlay-left">
+                <h1 className="text-2xl font-bold mb-4">
+                  ¡Bienvenido de Vuelta!
+                </h1>
+                <p className="mb-6">Si ya tienes cuenta, inicia sesión aquí</p>
+                <button
+                  type="button"
+                  className="overlay-button"
+                  onClick={toggleToLogin}
+                >
+                  Iniciar Sesión
+                </button>
+              </div>
+              <div className="overlay-panel overlay-right">
+                <h1 className="text-2xl font-bold mb-4">¡Hola!</h1>
+                <p className="mb-6">Introduce tus datos y crea una cuenta</p>
+                <button
+                  type="button"
+                  className="overlay-button"
+                  onClick={toggleToRegister}
+                >
+                  Registrarse
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Forgot Password Dialog */}
@@ -303,16 +384,20 @@ export default function AuthPage() {
 
           <div className="space-y-3 text-center px-1">
             <p className="text-gray-600 text-sm leading-relaxed">
-              Para restablecer tu contraseña, necesitas ponerte en contacto con el administrador del sistema.
+              Para restablecer tu contraseña, necesitas ponerte en contacto con
+              el administrador del sistema.
             </p>
 
             <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 p-3 rounded-xl border border-blue-500/30">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <MessageSquare className="w-4 h-4 text-blue-400" />
-                <span className="font-semibold text-blue-300 text-sm">Contacto por Teams</span>
+                <span className="font-semibold text-blue-300 text-sm">
+                  Contacto por Teams
+                </span>
               </div>
               <p className="text-blue-600 text-xs mb-2">
-                Comunícate con el administrador a través de Microsoft Teams para solicitar el restablecimiento de tu contraseña.
+                Comunícate con el administrador a través de Microsoft Teams para
+                solicitar el restablecimiento de tu contraseña.
               </p>
             </div>
           </div>
