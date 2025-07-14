@@ -160,31 +160,7 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
           </div>
         </div>
         
-        {/* User Profile Card */}
-        <div className="mx-2 mb-2 rounded-lg border bg-card p-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 ring-2 ring-offset-2 ring-offset-background ring-primary/20">
-              <AvatarImage src="" alt={user?.name || ""} />
-              <AvatarFallback className={`font-semibold text-sm ${getAreaColor(user?.area || '')}`}>
-                {getUserInitials(user?.name || "")}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{user?.name}</p>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className={`text-xs px-2 py-0.5 ${getAreaColor(user?.area || '')}`}>
-                  {user?.area ? getAreaDisplayName(user.area) : ''}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          <a href={`msteams:/l/chat/0/0?users=${user?.username}`} className="block mt-3">
-            <Button size="sm" className="w-full h-8 text-xs bg-gradient-to-r from-[#8c69a5] to-[#504b78] hover:from-[#7a5d93] hover:to-[#453c6a]">
-              <MessageSquare className="mr-2 h-3 w-3" />
-              Teams
-            </Button>
-          </a>
-        </div>
+        
       </SidebarHeader>
       
       <SidebarContent>
@@ -224,20 +200,7 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                 </SidebarMenuButton>
               </SidebarMenuItem>
               
-              <SidebarMenuItem>
-                <SidebarMenuButton 
-                  onClick={onShowNotifications}
-                  className="h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm group"
-                >
-                  <Bell className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 group-hover:rotate-12" />
-                  <span className="transition-colors duration-200">Notificaciones</span>
-                  {pendingTransfers.length > 0 && (
-                    <SidebarMenuBadge className="bg-destructive text-destructive-foreground transition-transform duration-200 group-hover:scale-110">
-                      {pendingTransfers.length}
-                    </SidebarMenuBadge>
-                  )}
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              
               
               <SidebarMenuItem>
                 <SidebarMenuButton 
@@ -297,6 +260,23 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                   <span className="transition-colors duration-200">Agenda</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              
+              {user?.area === 'almacen' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    onClick={() => setLocation('/almacen')}
+                    isActive={location === '/almacen'}
+                    className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
+                      location === '/almacen' 
+                        ? 'bg-gradient-to-r from-[#8c69a5]/20 to-[#504b78]/20 text-[#8c69a5] border-r-2 border-[#8c69a5] font-medium shadow-sm' 
+                        : ''
+                    }`}
+                  >
+                    <Factory className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                    <span className="transition-colors duration-200">Almacén</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -387,14 +367,12 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
       <SidebarFooter className="border-t">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton 
-              onClick={() => logoutMutation.mutate()}
-              disabled={logoutMutation.isPending}
-              className="h-10 text-muted-foreground hover:text-foreground transition-all duration-200 hover:bg-destructive/10 hover:scale-[1.02] hover:shadow-sm group"
-            >
-              <LogOut className="h-4 w-4 transition-transform duration-200 group-hover:scale-110 group-hover:-translate-x-1" />
-              <span className="transition-colors duration-200">Cerrar Sesión</span>
-            </SidebarMenuButton>
+            <a href={`msteams:/l/chat/0/0?users=${user?.username}`} className="block">
+              <SidebarMenuButton className="h-10 w-full bg-gradient-to-r from-[#8c69a5] to-[#504b78] hover:from-[#7a5d93] hover:to-[#453c6a] text-white transition-all duration-200 hover:scale-[1.02] hover:shadow-md group">
+                <MessageSquare className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                <span className="transition-colors duration-200">Teams</span>
+              </SidebarMenuButton>
+            </a>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
