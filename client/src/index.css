@@ -95,57 +95,113 @@
   animation-delay: 4s;
 }
 
+/* Modo claro */
+:root,
+.light,
+[data-theme="light"],
+body.light {
+  --background: hsl(0, 0%, 100%) !important;
+  --foreground: hsl(224, 71%, 4%) !important;
+  --muted: hsl(210, 40%, 98%) !important;
+  --muted-foreground: hsl(215, 16%, 47%) !important;
+  --popover: hsl(0, 0%, 100%) !important;
+  --popover-foreground: hsl(224, 71%, 4%) !important;
+  --card: hsl(0, 0%, 100%) !important;
+  --card-foreground: hsl(224, 71%, 4%) !important;
+  --border: hsl(214, 32%, 91%) !important;
+  --input: hsl(214, 32%, 91%) !important;
+  --primary: #504b78 !important;
+  --primary-foreground: #ffffff !important;
+  --secondary: hsl(210, 40%, 96%) !important;
+  --secondary-foreground: hsl(222, 84%, 5%) !important;
+  --accent: #8c69a5 !important;
+  --accent-foreground: #ffffff !important;
+  --destructive: #dc2626 !important;
+  --destructive-foreground: #ffffff !important;
+  --ring: #8c69a5 !important;
+  --radius: 0.5rem !important;
+
+  /* Variables específicas de JASANA para modo claro */
+  --jasana-primary: #504b78 !important;
+  --jasana-secondary: #233154 !important;
+  --jasana-accent: #8c69a5 !important;
+  --jasana-success: #16a34a !important;
+  --jasana-warning: #ea580c !important;
+  --jasana-error: #dc2626 !important;
+  --jasana-sidebar-bg: hsl(0, 0%, 100%) !important;
+  --jasana-topbar-bg: hsl(0, 0%, 100%) !important;
+  --jasana-content-bg: hsl(210, 40%, 98%) !important;
+}
+
+/* Modo oscuro */
+.dark,
+[data-theme="dark"],
+body.dark {
+  --background: hsl(222, 84%, 5%) !important;
+  --foreground: hsl(210, 40%, 98%) !important;
+  --muted: hsl(217, 32%, 17%) !important;
+  --muted-foreground: hsl(215, 20%, 65%) !important;
+  --popover: hsl(222, 84%, 5%) !important;
+  --popover-foreground: hsl(210, 40%, 98%) !important;
+  --card: hsl(222, 84%, 5%) !important;
+  --card-foreground: hsl(210, 40%, 98%) !important;
+  --border: hsl(217, 32%, 17%) !important;
+  --input: hsl(217, 32%, 17%) !important;
+  --primary: #8c69a5 !important;
+  --primary-foreground: #ffffff !important;
+  --secondary: hsl(217, 32%, 17%) !important;
+  --secondary-foreground: hsl(210, 40%, 98%) !important;
+  --accent: #de8fd9 !important;
+  --accent-foreground: hsl(222, 84%, 5%) !important;
+  --destructive: #f87171 !important;
+  --destructive-foreground: #ffffff !important;
+  --ring: #de8fd9 !important;
+  --radius: 0.5rem !important;
+
+  /* Variables específicas de JASANA para modo oscuro */
+  --jasana-primary: #8c69a5 !important;
+  --jasana-secondary: #de8fd9 !important;
+  --jasana-accent: #f8bbed !important;
+  --jasana-success: #4ade80 !important;
+  --jasana-warning: #fbbf24 !important;
+  --jasana-error: #f87171 !important;
+  --jasana-sidebar-bg: hsl(222, 84%, 5%) !important;
+  --jasana-topbar-bg: hsl(217, 32%, 17%) !important;
+  --jasana-content-bg: hsl(222, 84%, 5%) !important;
+}
+
+/* Fallback para :root (modo claro por defecto) */
 :root {
   --background: hsl(0, 0%, 100%);
-  --foreground: hsl(20, 14.3%, 4.1%);
-  --muted: hsl(60, 4.8%, 95.9%);
-  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --foreground: hsl(224, 71%, 4%);
+  --muted: hsl(210, 40%, 98%);
+  --muted-foreground: hsl(215, 16%, 47%);
   --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --popover-foreground: hsl(224, 71%, 4%);
   --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(20, 14.3%, 4.1%);
-  --border: hsl(20, 5.9%, 90%);
-  --input: hsl(20, 5.9%, 90%);
+  --card-foreground: hsl(224, 71%, 4%);
+  --border: hsl(214, 32%, 91%);
+  --input: hsl(214, 32%, 91%);
   --primary: #504b78;
-  --primary-foreground: #f8bbed;
-  --secondary: #233154;
-  --secondary-foreground: #f8bbed;
+  --primary-foreground: #ffffff;
+  --secondary: hsl(210, 40%, 96%);
+  --secondary-foreground: hsl(222, 84%, 5%);
   --accent: #8c69a5;
   --accent-foreground: #ffffff;
-  --destructive: #8c69a5;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --ring: #233154;
+  --ring: #8c69a5;
   --radius: 0.5rem;
 
   --jasana-primary: #504b78;
   --jasana-secondary: #233154;
   --jasana-accent: #8c69a5;
-  --jasana-success: #de8fd9;
-  --jasana-warning: #f8bbed;
-  --jasana-error: #8c69a5;
-}
-
-.dark {
-  --background: hsl(240, 10%, 3.9%);
-  --foreground: hsl(0, 0%, 98%);
-  --muted: hsl(240, 3.7%, 15.9%);
-  --muted-foreground: hsl(240, 5%, 64.9%);
-  --popover: hsl(240, 10%, 3.9%);
-  --popover-foreground: hsl(0, 0%, 98%);
-  --card: hsl(240, 10%, 3.9%);
-  --card-foreground: hsl(0, 0%, 98%);
-  --border: hsl(240, 3.7%, 15.9%);
-  --input: hsl(240, 3.7%, 15.9%);
-  --primary: #504b78;
-  --primary-foreground: #f8bbed;
-  --secondary: #233154;
-  --secondary-foreground: #f8bbed;
-  --accent: #8c69a5;
-  --accent-foreground: #ffffff;
-  --destructive: #8c69a5;
-  --destructive-foreground: #ffffff;
-  --ring: #de8fd9;
-  --radius: 0.5rem;
+  --jasana-success: #16a34a;
+  --jasana-warning: #ea580c;
+  --jasana-error: #dc2626;
+  --jasana-sidebar-bg: #ffffff;
+  --jasana-topbar-bg: #ffffff;
+  --jasana-content-bg: hsl(210, 40%, 98%);
 }
 
 @layer base {
@@ -154,8 +210,526 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Forzar colores de texto en todos los elementos */
+  h1, h2, h3, h4, h5, h6, p, span, div, label, a {
+    color: var(--foreground) !important;
+  }
+
+  /* Los botones usan sus propios colores definidos */
+  button {
+    /* Los botones mantienen sus colores específicos */
+  }
+
+  /* Asegurar que "Área actual" tenga el color correcto en modo claro */
+  .light [class*="text-gray-600"],
+  .light [class*="text-slate-600"] {
+    color: #475569 !important;
+  }
+
+  /* Asegurar que los inputs usen los colores correctos */
+  input, textarea, select {
+    background-color: var(--input) !important;
+    color: var(--foreground) !important;
+    border-color: var(--border) !important;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--muted-foreground) !important;
+  }
+
+  /* Asegurar que las cards usen los colores correctos */
+  .card {
+    background-color: var(--card) !important;
+    color: var(--card-foreground) !important;
+    border-color: var(--border) !important;
+  }
+
+  /* Elementos de tabla */
+  th, td {
+    color: var(--foreground) !important;
+  }
+
+  /* Elementos de navegación */
+  nav, nav * {
+    color: var(--foreground) !important;
+  }
+
+  /* Texto en elementos interactivos */
+  .text-muted-foreground {
+    color: var(--muted-foreground) !important;
+  }
+
+  .text-foreground {
+    color: var(--foreground) !important;
+  }
+
+  /* Mejoras para el modo claro */
+  .light .bg-gray-50 {
+    background-color: #f8fafc !important;
+  }
+
+  .light .hover\:bg-gray-100:hover {
+    background-color: #f1f5f9 !important;
+  }
+
+  .light .text-gray-500 {
+    color: #64748b !important;
+  }
+
+  .light .text-gray-600 {
+    color: #475569 !important;
+  }
+
+  .light .text-gray-700 {
+    color: #334155 !important;
+  }
+
+  .light .text-gray-800 {
+    color: #1e293b !important;
+  }
+
+  .light .text-gray-900 {
+    color: #0f172a !important;
+  }
+
+  .light .border-gray-200 {
+    border-color: #e2e8f0 !important;
+  }
+
+  .light .bg-blue-50 {
+    background-color: rgba(239, 246, 255, 0.8) !important;
+  }
+
+  .light .bg-purple-50 {
+    background-color: rgba(250, 245, 255, 0.8) !important;
+  }
+
+  .light .bg-green-50 {
+    background-color: rgba(240, 253, 244, 0.8) !important;
+  }
+
+  .light .bg-orange-50 {
+    background-color: rgba(255, 247, 237, 0.8) !important;
+  }
+
+  .light .bg-red-50 {
+    background-color: rgba(254, 242, 242, 0.8) !important;
+  }
+
+  /* Status badges - light mode con fondos más marcados y mejor contraste */
+  .status-active {
+    background-color: #fbbf24 !important;
+    color: #1f2937 !important;
+    border: 2px solid #f59e0b !important;
+    font-weight: 600 !important;
+  }
+
+  .status-completed {
+    background-color: #10b981 !important;
+    color: #ffffff !important;
+    border: 2px solid #059669 !important;
+    font-weight: 600 !important;
+  }
+
+  .status-paused {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border: 2px solid #dc2626 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Badges de estado específicos en modo claro - mejor contraste */
+  .light .bg-yellow-100 {
+    background-color: #fbbf24 !important;
+    color: #1f2937 !important;
+    border: 2px solid #f59e0b !important;
+    font-weight: 600 !important;
+  }
+
+  .light .text-yellow-800 {
+    color: #1f2937 !important;
+  }
+
+  .light .bg-green-100 {
+    background-color: #10b981 !important;
+    color: #ffffff !important;
+    border: 2px solid #059669 !important;
+    font-weight: 600 !important;
+  }
+
+  .light .text-green-800 {
+    color: #ffffff !important;
+  }
+
+  .light .bg-red-100 {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border: 2px solid #dc2626 !important;
+    font-weight: 600 !important;
+  }
+
+  .light .text-red-800 {
+    color: #ffffff !important;
+  }
+
+  .light .bg-blue-100 {
+    background-color: #3b82f6 !important;
+    color: #ffffff !important;
+    border: 2px solid #2563eb !important;
+    font-weight: 600 !important;
+  }
+
+  .light .text-blue-800 {
+    color: #ffffff !important;
+  }
+
+  .light .bg-purple-100 {
+    background-color: #8b5cf6 !important;
+    color: #ffffff !important;
+    border: 2px solid #7c3aed !important;
+    font-weight: 600 !important;
+  }
+
+  .light .text-purple-800 {
+    color: #ffffff !important;
+  }
+
+  .light .bg-orange-100 {
+    background-color: #f97316 !important;
+    color: #ffffff !important;
+    border: 2px solid #ea580c !important;
+    font-weight: 600 !important;
+  }
+
+  .light .text-orange-800 {
+    color: #ffffff !important;
+  }
+
+  .light .bg-gray-100 {
+    background-color: #6b7280 !important;
+    color: #ffffff !important;
+    border: 2px solid #4b5563 !important;
+    font-weight: 600 !important;
+  }
+
+  .light .text-gray-800 {
+    color: #ffffff !important;
+  }
+
+  /* Status badges - dark mode */
+  .dark .status-active {
+    background-color: rgba(120, 53, 15, 0.3) !important;
+    color: #fcd34d !important;
+  }
+
+  .dark .status-completed {
+    background-color: rgba(20, 83, 45, 0.3) !important;
+    color: #86efac !important;
+  }
+
+  .dark .status-paused {
+    background-color: rgba(127, 29, 29, 0.3) !important;
+    color: #fca5a5 !important;
+  }
+
+  /* Button states for dark mode */
+  .dark .bg-blue-50 {
+    background-color: rgba(30, 58, 138, 0.2) !important;
+  }
+
+  .dark .hover\:bg-blue-100:hover {
+    background-color: rgba(30, 58, 138, 0.3) !important;
+  }
+
+  .dark .text-blue-700 {
+    color: #93c5fd !important;
+  }
+
+  .dark .border-blue-200 {
+    border-color: #1e40af !important;
+  }
+
+  .dark .bg-purple-50 {
+    background-color: rgba(88, 28, 135, 0.2) !important;
+  }
+
+  .dark .hover\:bg-purple-100:hover {
+    background-color: rgba(88, 28, 135, 0.3) !important;
+  }
+
+  .dark .text-purple-700 {
+    color: #c4b5fd !important;
+  }
+
+  .dark .border-purple-200 {
+    border-color: #7c3aed !important;
+  }
+
+  .dark .bg-orange-50 {
+    background-color: rgba(154, 52, 18, 0.2) !important;
+  }
+
+  .dark .hover\:bg-orange-100:hover {
+    background-color: rgba(154, 52, 18, 0.3) !important;
+  }
+
+  .dark .text-orange-700 {
+    color: #fdba74 !important;
+  }
+
+  .dark .border-orange-200 {
+    border-color: #ea580c !important;
+  }
+
+  .dark .bg-green-50 {
+    background-color: rgba(20, 83, 45, 0.2) !important;
+  }
+
+  .dark .hover\:bg-green-100:hover {
+    background-color: rgba(20, 83, 45, 0.3) !important;
+  }
+
+  .dark .text-green-700 {
+    color: #86efac !important;
+  }
+
+  .dark .border-green-200 {
+    border-color: #16a34a !important;
+  }
+
+  .dark .bg-gray-50 {
+    background-color: rgba(17, 24, 39, 0.2) !important;
+  }
+
+  .dark .hover\:bg-gray-100:hover {
+    background-color: rgba(17, 24, 39, 0.3) !important;
+  }
+
+  .dark .text-gray-700 {
+    color: #d1d5db !important;
+  }
+
+  .dark .border-gray-200 {
+    border-color: #374151 !important;
+  }
+
+  .dark .bg-red-50 {
+    background-color: rgba(127, 29, 29, 0.2) !important;
+  }
+
+  .dark .hover\:bg-red-100:hover {
+    background-color: rgba(127, 29, 29, 0.3) !important;
+  }
+
+  .dark .text-red-700 {
+    color: #fca5a5 !important;
+  }
+
+  .dark .border-red-200 {
+    border-color: #dc2626 !important;
+  }
+
+  /* Botones con fondos oscuros deben mantener texto blanco en modo claro */
+  .light button[class*="bg-purple"], 
+  .light button[class*="bg-blue"], 
+  .light button[class*="bg-indigo"], 
+  .light button[class*="bg-violet"], 
+  .light button[class*="bg-primary"], 
+  .light .bg-primary,
+  .light .bg-purple-600,
+  .light .bg-blue-600,
+  .light .bg-indigo-600,
+  .light .bg-violet-600 {
+    color: white !important;
+  }
+
+  /* Botones de gradiente mantienen texto blanco */
+  .light .auth-button,
+  .light .overlay-button,
+  .light button[style*="gradient"] {
+    color: white !important;
+  }
+
+  /* Fondos claros para botones de acciones en modo claro */
+  .light button[variant="outline"] {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  .light button[variant="outline"]:hover {
+    background-color: #f1f5f9 !important;
+  }
+
+  /* Botones específicos de reposiciones con fondos más marcados */
+  .light .text-blue-600,
+  .light button.text-blue-600 {
+    background-color: #dbeafe !important;
+    border-color: #93c5fd !important;
+    color: #1d4ed8 !important;
+  }
+
+  .light .text-green-600,
+  .light button.text-green-600 {
+    background-color: #dcfce7 !important;
+    border-color: #86efac !important;
+    color: #16a34a !important;
+  }
+
+  .light .text-red-600,
+  .light button.text-red-600 {
+    background-color: #fee2e2 !important;
+    border-color: #fca5a5 !important;
+    color: #dc2626 !important;
+  }
+
+  .light .text-purple-600,
+  .light button.text-purple-600 {
+    background-color: #f3e8ff !important;
+    border-color: #c084fc !important;
+    color: #9333ea !important;
+  }
+
+  .light .text-orange-600,
+  .light button.text-orange-600 {
+    background-color: #fed7aa !important;
+    border-color: #fdba74 !important;
+    color: #ea580c !important;
+  }
+
+  /* Botones de acciones específicas con fondos marcados */
+  .light button[title*="Ver detalles"],
+  .light button[title*="Transferir"],
+  .light button[title*="Pausar"],
+  .light button[title*="Reanudar"],
+  .light button[title*="Finalizar"],
+  .light button[title*="Ver historial"] {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    border: 2px solid !important;
+  }
+
+  .light button[title*="Ver detalles"] {
+    background-color: #dbeafe !important;
+    border-color: #3b82f6 !important;
+    color: #1d4ed8 !important;
+  }
+
+  .light button[title*="Transferir"] {
+    background-color: #f3e8ff !important;
+    border-color: #8b5cf6 !important;
+    color: #7c3aed !important;
+  }
+
+  .light button[title*="Pausar"] {
+    background-color: #fed7aa !important;
+    border-color: #f97316 !important;
+    color: #ea580c !important;
+  }
+
+  .light button[title*="Reanudar"] {
+    background-color: #dcfce7 !important;
+    border-color: #22c55e !important;
+    color: #16a34a !important;
+  }
+
+  .light button[title*="Finalizar"] {
+    background-color: #dcfce7 !important;
+    border-color: #22c55e !important;
+    color: #16a34a !important;
+  }
+
+  .light button[title*="Ver historial"] {
+    background-color: #f1f5f9 !important;
+    border-color: #64748b !important;
+    color: #475569 !important;
+  }
+
+  .light button[title*="Eliminar"] {
+    background-color: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    color: #dc2626 !important;
+  }
+
+  /* Area badges - dark mode overrides */
+  .dark .bg-green-100 {
+    background-color: rgba(20, 83, 45, 0.3) !important;
+  }
+
+  .dark .text-green-800 {
+    color: #86efac !important;
+  }
+
+  .dark .bg-blue-100 {
+    background-color: rgba(30, 58, 138, 0.3) !important;
+  }
+
+  .dark .text-blue-800 {
+    color: #93c5fd !important;
+  }
+
+  .dark .bg-purple-100 {
+    background-color: rgba(88, 28, 135, 0.3) !important;
+  }
+
+  .dark .text-purple-800 {
+    color: #c4b5fd !important;
+  }
+
+  .dark .bg-orange-100 {
+    background-color: rgba(154, 52, 18, 0.3) !important;
+  }
+
+  .dark .text-orange-800 {
+    color: #fdba74 !important;
+  }
+
+  .dark .bg-pink-100 {
+    background-color: rgba(131, 24, 67, 0.3) !important;
+  }
+
+  .dark .text-pink-800 {
+    color: #f9a8d4 !important;
+  }
+
+  .dark .bg-indigo-100 {
+    background-color: rgba(49, 46, 129, 0.3) !important;
+  }
+
+  .dark .text-indigo-800 {
+    color: #a5b4fc !important;
+  }
+
+  .dark .bg-yellow-100 {
+    background-color: rgba(120, 53, 15, 0.3) !important;
+  }
+
+  .dark .text-yellow-800 {
+    color: #fcd34d !important;
+  }
+
+  .dark .bg-gray-100 {
+    background-color: rgba(17, 24, 39, 0.3) !important;
+  }
+
+  .dark .text-gray-800 {
+    color: #d1d5db !important;
+  }
+
+  /* Asegurar visibilidad de badges en componentes */
+  .light .badge,
+  .light [class*="badge-"] {
+    font-weight: 600 !important;
+  }
+
+  /* Override general badge text colors in light mode */
+  .light .badge * {
+    color: inherit !important;
   }
 }
 
@@ -205,32 +779,96 @@
 .slide-out-right {
   animation: slideOutRight 0.3s ease-out;
 }
+/* Badge styles for areas - light and dark mode con mejor contraste */
 .badge-corte {
-  @apply bg-[#de8fd9] text-[#233154];
+  background-color: #10b981 !important;
+  color: #ffffff !important;
+  border: 2px solid #059669 !important;
+  font-weight: 600 !important;
+}
+
+.dark .badge-corte {
+  background-color: rgba(6, 78, 59, 0.3) !important;
+  color: #6ee7b7 !important;
+  border-color: #047857 !important;
 }
 
 .badge-bordado {
-  @apply bg-[#8c69a5] text-white;
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  border: 2px solid #2563eb !important;
+  font-weight: 600 !important;
+}
+
+.dark .badge-bordado {
+  background-color: rgba(30, 58, 138, 0.3) !important;
+  color: #93c5fd !important;
+  border-color: #1e40af !important;
 }
 
 .badge-ensamble {
-  @apply bg-[#504b78] text-white;
+  background-color: #8b5cf6 !important;
+  color: #ffffff !important;
+  border: 2px solid #7c3aed !important;
+  font-weight: 600 !important;
+}
+
+.dark .badge-ensamble {
+  background-color: rgba(88, 28, 135, 0.3) !important;
+  color: #c4b5fd !important;
+  border-color: #7c3aed !important;
 }
 
 .badge-plancha {
-  @apply bg-[#f8bbed] text-[#233154];
+  background-color: #f97316 !important;
+  color: #ffffff !important;
+  border: 2px solid #ea580c !important;
+  font-weight: 600 !important;
+}
+
+.dark .badge-plancha {
+  background-color: rgba(154, 52, 18, 0.3) !important;
+  color: #fdba74 !important;
+  border-color: #ea580c !important;
 }
 
 .badge-calidad {
-  @apply bg-[#233154] text-white;
+  background-color: #ec4899 !important;
+  color: #ffffff !important;
+  border: 2px solid #db2777 !important;
+  font-weight: 600 !important;
+}
+
+.dark .badge-calidad {
+  background-color: rgba(131, 24, 67, 0.3) !important;
+  color: #f9a8d4 !important;
+  border-color: #db2777 !important;
 }
 
 .badge-envios {
-  @apply bg-[#8c69a5] text-white;
+  background-color: #6366f1 !important;
+  color: #ffffff !important;
+  border: 2px solid #4f46e5 !important;
+  font-weight: 600 !important;
+}
+
+.dark .badge-envios {
+  background-color: rgba(49, 46, 129, 0.3) !important;
+  color: #a5b4fc !important;
+  border-color: #6366f1 !important;
 }
 
 .badge-admin {
-  @apply bg-[#504b78] text-white;
+  background-color: #6b7280 !important;
+  color: #ffffff !important;
+  border: 2px solid #4b5563 !important;
+  font-weight: 600 !important;
+}
+
+.dark .badge-admin {
+  background-color: rgba(15, 23, 42, 0.3) !important;
+  color: #cbd5e1 !important;
+  border-color: #475569 !important;
 }
 
 @keyframes fade-in {
@@ -366,6 +1004,27 @@
   border-radius: 1rem 0 0 1rem;
 }
 
+/* Textos específicos del auth form en modo claro */
+.light .auth-form h1,
+.light .auth-form p,
+.light .auth-form label,
+.light .auth-form span {
+  color: #1f2937 !important;
+}
+
+/* Labels y placeholders en el auth form */
+.light .auth-label {
+  color: #6b7280 !important;
+}
+
+.light .auth-form .text-gray-600 {
+  color: #6b7280 !important;
+}
+
+.light .auth-form .text-gray-800 {
+  color: #1f2937 !important;
+}
+
 .auth-container.register-active .register-container .auth-form {
   border-radius: 0 1rem 1rem 0;
 }
@@ -441,7 +1100,7 @@
   width: 100%;
   background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
   border: none;
-  color: white;
+  color: white !important;
   font-weight: 600;
   padding: 0.75rem 1.5rem;
   border-radius: 10px;
@@ -455,6 +1114,13 @@
   background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
+  color: white !important;
+}
+
+/* Asegurar que los iconos en botones auth también sean blancos */
+.light .auth-button svg,
+.light .overlay-button svg {
+  color: white !important;
 }
 
 .overlay-container {
@@ -527,7 +1193,7 @@
 .overlay-button {
   background: transparent;
   border: 2px solid white;
-  color: white;
+  color: white !important;
   font-weight: 600;
   padding: 0.75rem 2rem;
   border-radius: 25px;
@@ -539,7 +1205,7 @@
 
 .overlay-button:hover {
   background: white;
-  color: #667eea;
+  color: #667eea !important;
   transform: translateY(-2px);
   box-shadow: 0 5px 15px rgba(255,255,255,0.3);
 }

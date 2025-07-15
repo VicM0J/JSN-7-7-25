@@ -146,14 +146,14 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
   };
 
   return (
-    <Sidebar variant="inset" className="border-r-0">
-      <SidebarHeader className="border-b">
+    <Sidebar variant="inset" className="border-r-0 bg-[var(--jasana-sidebar-bg)]">
+      <SidebarHeader className="border-b bg-[var(--jasana-sidebar-bg)]">
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#ffffff] to-[#ebebeb] shadow-md">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--jasana-accent)]/20 to-[var(--jasana-primary)]/20 shadow-md dark:from-[var(--jasana-accent)]/30 dark:to-[var(--jasana-primary)]/30">
             <img src="../../../public/logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-[#8c69a5] to-[#504b78] bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-[var(--jasana-accent)] to-[var(--jasana-primary)] bg-clip-text text-transparent">
               JASANA
             </h1>
             <p className="text-xs text-muted-foreground">Sistema de Pedidos</p>
@@ -163,7 +163,7 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
         
       </SidebarHeader>
       
-      <SidebarContent>
+      <SidebarContent className="bg-[var(--jasana-sidebar-bg)]">
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Navegación Principal
@@ -364,7 +364,7 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
         )}
       </SidebarContent>
       
-      <SidebarFooter className="border-t">
+      <SidebarFooter className="border-t bg-[var(--jasana-sidebar-bg)]">
         <SidebarMenu>
           <SidebarMenuItem>
             <a href={`msteams:/l/chat/0/0?users=${user?.username}`} className="block">

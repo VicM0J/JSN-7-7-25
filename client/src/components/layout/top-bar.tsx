@@ -26,6 +26,7 @@ import {
   MessageSquare,
   Settings
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useQuery } from "@tanstack/react-query";
 
 interface TopBarProps {
@@ -132,12 +133,12 @@ export function TopBar({ onShowNotifications }: TopBarProps) {
 
   return (
     <>
-      <div className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+      <div className="h-16 border-b bg-[var(--jasana-topbar-bg)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--jasana-topbar-bg)]/60 sticky top-0 z-50">
         <div className="flex h-full items-center justify-between px-6">
           {/* Información del usuario */}
           <div className="flex items-center gap-3">
             <div className="flex flex-col">
-              <h1 className="text-lg font-bold bg-gradient-to-r from-[#8c69a5] to-[#504b78] bg-clip-text text-transparent">
+              <h1 className="text-lg font-bold bg-gradient-to-r from-[var(--jasana-accent)] to-[var(--jasana-primary)] bg-clip-text text-transparent">
                 {getGreeting()}, {user?.name}
               </h1>
               <p className="text-xs text-muted-foreground">{user?.area ? getAreaDisplayName(user.area) : ''}</p>
@@ -146,12 +147,15 @@ export function TopBar({ onShowNotifications }: TopBarProps) {
 
           {/* Botones de acción */}
           <div className="flex items-center gap-3">
+            {/* Botón de cambio de tema */}
+            <ThemeToggle />
+            
             {/* Botón de notificaciones */}
             <Button
               variant="ghost"
               size="sm"
               onClick={onShowNotifications}
-              className="relative h-10 w-10 p-0 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10"
+              className="relative h-10 w-10 p-0 hover:bg-gradient-to-r hover:from-[var(--jasana-accent)]/10 hover:to-[var(--jasana-primary)]/10"
             >
               <Bell className="h-5 w-5" />
               {totalNotifications > 0 && (

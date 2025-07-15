@@ -28,7 +28,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex w-full bg-[var(--jasana-content-bg)]">
         <CustomSidebar 
           onShowNotifications={() => setShowNotifications(true)}
           onCreateOrder={() => setShowCreateOrder(true)}
@@ -37,7 +37,7 @@ export function Layout({ children }: LayoutProps) {
         
         <SidebarInset className="flex-1 flex flex-col">
           <TopBar onShowNotifications={() => setShowNotifications(true)} />
-          <main className="flex-1 p-6 overflow-y-auto">
+          <main className="flex-1 p-6 overflow-y-auto bg-[var(--jasana-content-bg)]">
             {children}
           </main>
         </SidebarInset>
