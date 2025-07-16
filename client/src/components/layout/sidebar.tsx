@@ -173,12 +173,13 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+              <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                 <SidebarMenuButton 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLocation('/');
-                  }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setLocation('/'); // o lo que corresponda
+                    }}
                   isActive={location === '/'}
                   className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
                     location === '/' 
@@ -191,12 +192,14 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                 </SidebarMenuButton>
               </SidebarMenuItem>
               
-              <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+              <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                 <SidebarMenuButton 
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     setLocation('/orders');
                   }}
+
                   isActive={location === '/orders'}
                   className={`h-10 transition-all duration-200 hover:bg-gradient-to-r hover:from-[#8c69a5]/10 hover:to-[#504b78]/10 hover:scale-[1.02] hover:shadow-sm ${
                     location === '/orders' 
@@ -209,9 +212,10 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                 </SidebarMenuButton>
               </SidebarMenuItem>
               
-              <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+              <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                 <SidebarMenuButton 
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     setLocation('/repositions');
                   }}
@@ -241,9 +245,10 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                 </SidebarMenuButton>
               </SidebarMenuItem>
               
-              <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+              <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                 <SidebarMenuButton 
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     setLocation('/history');
                   }}
@@ -259,9 +264,10 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                 </SidebarMenuButton>
               </SidebarMenuItem>
               
-              <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+              <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                 <SidebarMenuButton 
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     setLocation('/agenda');
                   }}
@@ -278,9 +284,10 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
               </SidebarMenuItem>
               
               {user?.area === 'almacen' && (
-                <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+                <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                   <SidebarMenuButton 
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       setLocation('/almacen');
                     }}
@@ -310,7 +317,7 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
               <SidebarGroupContent>
                 <SidebarMenu>
                   {canCreateOrders && (
-                    <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+                    <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                       <SidebarMenuButton 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -325,9 +332,10 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                   )}
                   
                   {canCreateRepositions && (
-                    <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+                    <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                       <SidebarMenuButton 
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           onCreateReposition();
                         }}
@@ -353,9 +361,10 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+                  <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                     <SidebarMenuButton 
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         setLocation('/admin');
                       }}
@@ -371,9 +380,10 @@ export function CustomSidebar({ onShowNotifications, onCreateOrder, onCreateRepo
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   
-                  <SidebarMenuItem onClick={(e) => state === "collapsed" && e.stopPropagation()}>
+                  <SidebarMenuItem onClick={(e) => {if (state === "collapsed") {e.preventDefault();e.stopPropagation();}}}>
                     <SidebarMenuButton 
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         setLocation('/metrics');
                       }}
