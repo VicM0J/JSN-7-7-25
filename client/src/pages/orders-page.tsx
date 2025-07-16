@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Eye, ArrowRight, History, Plus, CheckCircle, Trash2, Pause, Play } from "lucide-react";
+import { Search, Eye, ArrowRight, History, Plus, CheckCircle, Trash2, Pause, Play, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,9 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [showMyOrdersOnly, setShowMyOrdersOnly] = useState(false);
 
   const [showTransfer, setShowTransfer] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -43,15 +46,15 @@ export default function OrdersPage() {
       const response = await fetch('/api/orders', {
         credentials: 'include'
       });
-      
+
       if (!response.ok) {
         console.error(`[ORDERS PAGE - ${user?.area}] Failed to fetch orders:`, response.status, response.statusText);
         throw new Error(`Failed to fetch orders: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log(`[ORDERS PAGE - ${user?.area}] Received ${data.length} orders`);
-      
+
       // Enhanced logging for bordado
       if (user?.area === 'bordado') {
         console.log(`[BORDADO PAGE] Successfully fetched ${data.length} orders`);
@@ -60,7 +63,7 @@ export default function OrdersPage() {
           return acc;
         }, {}));
       }
-      
+
       return data;
     },
     enabled: !!user, // Only fetch when user is authenticated
@@ -204,12 +207,46 @@ export default function OrdersPage() {
     const matchesSearch = searchTerm === "" || 
       order.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.clienteHotel.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.modelo.toLowerCase().includes(searchTerm.toLowerCase());
+      order.modelo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.noSolicitud?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.tipoPrenda?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.color?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.tela?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesArea = areaFilter === "all" || order.currentArea === areaFilter;
     const matchesStatus = statusFilter === "all" || order.status === statusFilter;
 
-    return matchesSearch && matchesArea && matchesStatus;
+    const matchesDateRange = (() => {
+      if (dateRangeFilter === "all") return true;
+
+      const orderDate = new Date(order.createdAt);
+      const now = new Date();
+
+      switch (dateRangeFilter) {
+        case "today":
+          return orderDate.toDateString() === now.toDateString();
+        case "week":
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          return orderDate >= weekAgo;
+        case "month":
+          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          return orderDate >= monthAgo;
+        case "quarter":
+          const quarterAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          return orderDate >= quarterAgo;
+        default:
+          return true;
+      }
+    })();
+
+    const matchesPriority = priorityFilter === "all" || 
+      (order.totalPiezas >= 100 && priorityFilter === "high") ||
+      (order.totalPiezas >= 50 && order.totalPiezas < 100 && priorityFilter === "medium") ||
+      (order.totalPiezas < 50 && priorityFilter === "low");
+
+    const matchesMyOrders = !showMyOrdersOnly || order.currentArea === user?.area;
+
+    return matchesSearch && matchesArea && matchesStatus && matchesDateRange && matchesPriority && matchesMyOrders;
   });
 
   const handleTransferOrder = (orderId: number) => {
@@ -271,26 +308,39 @@ export default function OrdersPage() {
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 border-blue-200 dark:border-slate-600">
         <CardHeader>
-          <CardTitle>Filtros</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-300">
+            <Search className="w-5 h-5" />
+            Búsqueda y Filtros Avanzados
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="relative col-span-1 md:col-span-2">
               <Input
                 type="text"
-                placeholder="Buscar por folio, cliente o modelo..."
-                className="pl-10"
+                placeholder="Buscar por folio, cliente, modelo, No. solicitud, tipo de prenda..."
+                className="pl-10 bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-900 dark:text-gray-100"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-gray-300" />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
             </div>
 
             <Select value={areaFilter} onValueChange={setAreaFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Filtrar por área" />
+                <SelectValue placeholder="Área" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las Áreas</SelectItem>
@@ -309,7 +359,7 @@ export default function OrdersPage() {
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Filtrar por estado" />
+                <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Estados</SelectItem>
@@ -318,6 +368,88 @@ export default function OrdersPage() {
                 <SelectItem value="completed">Finalizados</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las fechas</SelectItem>
+                <SelectItem value="today">Hoy</SelectItem>
+                <SelectItem value="week">Última semana</SelectItem>
+                <SelectItem value="month">Último mes</SelectItem>
+                <SelectItem value="quarter">Último trimestre</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Prioridad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las prioridades</SelectItem>
+                <SelectItem value="high">Alta</SelectItem>
+                <SelectItem value="medium">Media</SelectItem>
+                <SelectItem value="low">Baja</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="my-orders-only"
+                checked={showMyOrdersOnly}
+                onChange={(e) => setShowMyOrdersOnly(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="my-orders-only" className="text-sm font-medium">
+                Solo mis pedidos
+              </label>
+            </div>
+          </div>
+
+          {/* Resumen de filtros activos */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            {(searchTerm || areaFilter !== 'all' || statusFilter !== 'all' || dateRangeFilter !== 'all' || priorityFilter !== 'all' || showMyOrdersOnly) && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Filtros activos:</span>
+                {searchTerm && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    Búsqueda: "{searchTerm.substring(0, 20)}{searchTerm.length > 20 ? '...' : ''}"
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setSearchTerm('')} />
+                  </Badge>
+                )}
+                {areaFilter !== 'all' && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    Área: {getAreaDisplayName(areaFilter as Area)}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setAreaFilter('all')} />
+                  </Badge>
+                )}
+                {statusFilter !== 'all' && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    Estado: {statusFilter === 'active' ? 'En proceso' : statusFilter === 'paused' ? 'Pausado' : 'Finalizado'}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setStatusFilter('all')} />
+                  </Badge>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setAreaFilter('all');
+                    setStatusFilter('all');
+                    setDateRangeFilter('all');
+                    setPriorityFilter('all');
+                    setShowMyOrdersOnly(false);
+                  }}
+                  className="h-6 text-xs"
+                >
+                  Limpiar todo
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
