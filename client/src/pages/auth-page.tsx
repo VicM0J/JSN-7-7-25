@@ -440,16 +440,16 @@ export default function AuthPage() {
                           <SelectValue placeholder="Selecciona tu área" />
                         </SelectTrigger>
                         <SelectContent className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600">
-                          <SelectItem value="corte" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">✂️ Corte</SelectItem>
-                          <SelectItem value="bordado" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">🪡 Bordado</SelectItem>
-                          <SelectItem value="ensamble" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">🔧 Ensamble</SelectItem>
-                          <SelectItem value="plancha" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">👔 Plancha/Empaque</SelectItem>
-                          <SelectItem value="calidad" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">✅ Calidad</SelectItem>
-                          <SelectItem value="envios" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">📦 Envíos</SelectItem>
-                          <SelectItem value="patronaje" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">📐 Patronaje</SelectItem>
-                          <SelectItem value="almacen" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">🏪 Almacén</SelectItem>
-                          <SelectItem value="diseño" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">🎨 Diseño</SelectItem>
-                          <SelectItem value="admin" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">⚙️ Admin</SelectItem>
+                          <SelectItem value="corte" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Corte ✂️</SelectItem>
+                          <SelectItem value="bordado" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Bordado 🪡</SelectItem>
+                          <SelectItem value="ensamble" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Ensamble 🔧</SelectItem>
+                          <SelectItem value="plancha" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Plancha/Empaque 👔</SelectItem>
+                          <SelectItem value="calidad" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Calidad ✅</SelectItem>
+                          <SelectItem value="envios" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Envíos 📦</SelectItem>
+                          <SelectItem value="patronaje" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Patronaje 📐</SelectItem>
+                          <SelectItem value="almacen" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Almacén 🏪</SelectItem>
+                          <SelectItem value="diseño" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Diseño 🎨</SelectItem>
+                          <SelectItem value="admin" className="text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600">Admin ⚙️</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
