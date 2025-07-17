@@ -142,7 +142,7 @@ export interface IStorage {
   approveReposition(repositionId: number, action: RepositionStatus, userId: number, notes?: string): Promise<Reposition>;
 
   createRepositionTransfer(transfer: InsertRepositionTransfer, createdBy: number): Promise<RepositionTransfer>;
-  processRepositionTransfer(transferId: number, action: 'accepted' | 'rejected', userId: number): Promise<RepositionTransfer>;
+  processRepositionTransfer(transferId: number, action: 'accepted' | 'rejected', userId: number, reason?: string): Promise<RepositionTransfer>;
   getRepositionHistory(repositionId: number): Promise<RepositionHistory[]>;
   getRepositionTracking(repositionId: number): Promise<any>;
 
@@ -213,6 +213,7 @@ export interface IStorage {
   async resetUserSequence(): Promise<void>;
   async backupUsers(): Promise<any>;
   async restoreUsers(backupData: any): Promise<any>;
+  updateReposition(repositionId: number, data: any, pieces: any[], userId: number): Promise<any>;
 }
 
 export interface LocalRepositionTimer {
@@ -861,6 +862,7 @@ export class DatabaseStorage implements IStorage {
         status: action,
         approvedBy: userId,
         approvedAt: new Date(),
+        rejectionReason: action === 'rechazado' ? notes : null,
         // NO cambiar área automáticamente, mantener en área actual
       })
       .where(eq(repositions.id, repositionId))
@@ -877,7 +879,7 @@ export class DatabaseStorage implements IStorage {
     await this.createNotification({
       userId: reposition.createdBy,
       type: action === 'aprobado' ? 'transfer_accepted' : 'transfer_rejected',
-      title: action === 'aprobado' ? 'Reposición Aprobada' : 'Reposición Rechazada',
+      title: action === 'aprobado' ? 'Reposición Aprobada' : 'ReposiciónRechazada',
       message: `Tu reposición ${reposition.folio} ha sido ${action === 'aprobado' ? 'aprobada' : 'rechazada'}${notes ? `: ${notes}` : ''}`,
       repositionId: repositionId,
     });
@@ -922,13 +924,20 @@ export class DatabaseStorage implements IStorage {
     return repositionTransfer;
   }
 
-  async processRepositionTransfer(transferId: number, action: 'accepted' | 'rejected', userId: number): Promise<RepositionTransfer> {
+  async processRepositionTransfer(transferId: number, action: 'accepted' | 'rejected', userId: number, reason?: string): Promise<RepositionTransfer> {
+    const updateData: any = {
+      status: action,
+      processedBy: userId,
+      processedAt: new Date()
+    };
+
+    // Si es un rechazo, guardar la razón en las notas
+    if (action === 'rejected' && reason) {
+      updateData.notes = reason;
+    }
+
     const [transfer] = await db.update(repositionTransfers)
-      .set({
-        status: action,
-        processedBy: userId,
-        processedAt: new Date()
-      })
+      .set(updateData)
       .where(eq(repositionTransfers.id, transferId))
       .returning();
 
@@ -938,10 +947,14 @@ export class DatabaseStorage implements IStorage {
         .where(eq(repositions.id, transfer.repositionId));
     }
 
+    const historyDescription = action === 'accepted' 
+      ? `Transfer ${action} from ${transfer.fromArea} to ${transfer.toArea}`
+      : `Transfer ${action} from ${transfer.fromArea} to ${transfer.toArea}${reason ? ` - Motivo: ${reason}` : ''}`;
+
     await this.addRepositionHistory(
       transfer.repositionId,
       `transfer_${action}`,
-      `Transfer ${action} from ${transfer.fromArea} to ${transfer.toArea}`,
+      historyDescription,
       userId,
       transfer.fromArea,
       transfer.toArea
@@ -1218,14 +1231,28 @@ async getRepositionTracking(repositionId: number): Promise<any> {
     const history = await this.getRepositionHistory(repositionId);
     console.log('History entries:', history.length);
 
-    // Obtener tiempos por área
-    const timers = await db.select().from(repositionTimers)
-      .where(eq(repositionTimers.repositionId, repositionId));
+    // Obtener transferencias - usar select básico para evitar problemas con campos undefined
+    const transfersFromDB = await db.select()
+    .from(repositionTransfers)
+    .where(eq(repositionTransfers.repositionId, repositionId))
+    .orderBy(desc(repositionTransfers.createdAt));
 
-    console.log('Timers found:', timers.length);
+    console.log('Transfers found:', transfersFromDB.length);
+
+    // Obtener tiempos por área - query básico sin select específico
+    let timersFromDB: any[] = [];
+    try {
+      timersFromDB = await db.select().from(repositionTimers)
+        .where(eq(repositionTimers.repositionId, repositionId));
+    } catch (timerError) {
+      console.error('Error fetching timers:', timerError);
+      timersFromDB = [];
+    }
+
+    console.log('Timers found:', timersFromDB.length);
 
     // Solo mostrar áreas que tienen tiempos registrados o el área actual
-    const areasWithTimers = timers.map(t => t.area);
+    const areasWithTimers = timersFromDB.map(t => t.area);
     const allRelevantAreas = [...new Set([...areasWithTimers, reposition.currentArea])];
 
     // Ordenar las áreas según el flujo estándar
@@ -1239,8 +1266,8 @@ async getRepositionTracking(repositionId: number): Promise<any> {
     console.log('Relevant areas for this reposition:', sortedAreas);
 
     // Crear pasos del proceso solo para áreas relevantes
-    const steps = sortedAreas.map((area, index) => {
-      const areaTimer = timers.find(t => t.area === area);
+    const stepsFromAreas = sortedAreas.map((area, index) => {
+      const areaTimer = timersFromDB.find(t => t.area === area);
       let status: 'completed' | 'current' | 'pending' = 'pending';
 
       // Determinar status basado en si hay timer registrado y área actual
@@ -1305,9 +1332,9 @@ async getRepositionTracking(repositionId: number): Promise<any> {
     });
 
     // Calcular tiempos por área - solo para áreas con tiempos registrados
-    const areaTimes: Record<string, number> = {};
+    const areaTimesCalculated: Record<string, number> = {};
 
-    timers.forEach(timer => {
+    timersFromDB.forEach(timer => {
       let elapsedMinutes = 0;
 
       // Solo calcular si tenemos tanto tiempo de inicio como de fin
@@ -1334,24 +1361,24 @@ async getRepositionTracking(repositionId: number): Promise<any> {
 
         // Solo asignar si tenemos un valor válido
         if (!isNaN(elapsedMinutes) && elapsedMinutes > 0) {
-          areaTimes[timer.area] = elapsedMinutes;
+          areaTimesCalculated[timer.area] = elapsedMinutes;
         }
       }
     });
 
-    console.log('Area times calculated:', areaTimes);
+    console.log('Area times calculated:', areaTimesCalculated);
 
     // Calcular tiempo total
-    const validTimes = Object.values(areaTimes).filter(minutes => !isNaN(minutes) && minutes > 0);
-    const totalMinutes = validTimes.reduce((sum, minutes) => sum + minutes, 0);
-    const totalHours = Math.floor(totalMinutes / 60);
-    const remainingMinutes = Math.round(totalMinutes % 60);
-    const totalTimeFormatted = totalMinutes > 0 ? 
+    const validTimes = Object.values(areaTimesCalculated).filter(minutes => !isNaN(minutes) && minutes > 0);
+    const totalMinutesCalculated = validTimes.reduce((sum, minutes) => sum + minutes, 0);
+    const totalHours = Math.floor(totalMinutesCalculated / 60);
+    const remainingMinutes = Math.round(totalMinutesCalculated % 60);
+    const totalTimeFormatted = totalMinutesCalculated > 0 ? 
       (totalHours > 0 ? `${totalHours}h ${remainingMinutes}m` : `${remainingMinutes}m`) : 
       "0m";
 
     // Calcular progreso basado en áreas completadas vs áreas relevantes
-    const completedSteps = steps.filter(s => s.status === 'completed').length;
+    const completedSteps = stepsFromAreas.filter(s => s.status === 'completed').length;
     const progress = sortedAreas.length > 0 ? Math.round((completedSteps / sortedAreas.length) * 100) : 0;
 
     const result = {
@@ -1361,13 +1388,25 @@ async getRepositionTracking(repositionId: number): Promise<any> {
         currentArea: reposition.currentArea,
         progress
       },
-      steps,
+      steps: stepsFromAreas,
       history,
+      transfers: transfersFromDB.map(t => ({
+        id: t.id,
+        fromArea: t.fromArea,
+        toArea: t.toArea,
+        status: t.status || 'pending',
+        notes: t.notes || '',
+        consumoTela: t.consumoTela || null,
+        createdAt: t.createdAt,
+        processedAt: t.processedAt || null,
+        transferredBy: 'Usuario',
+        processedBy: t.processedBy ? 'Usuario' : null
+      })),
       totalTime: {
         formatted: totalTimeFormatted,
-        minutes: totalMinutes
+        minutes: totalMinutesCalculated
       },
-      areaTimes
+      areaTimes: areaTimesCalculated
     };
 
     console.log('Returning tracking data:', JSON.stringify(result, null, 2));
@@ -1383,6 +1422,94 @@ async getRepositionTracking(repositionId: number): Promise<any> {
         eq(repositionTransfers.status, 'pending')
       ))
       .orderBy(desc(repositionTransfers.createdAt));
+  }
+
+  async hasRecentTransfer(repositionId: number, fromArea: Area): Promise<{ hasRecent: boolean, remainingTime?: number }> {
+    // Primero verificar si hay alguna transferencia pendiente de esta área para esta reposición
+    const pendingTransfer = await db.select().from(repositionTransfers)
+      .where(and(
+        eq(repositionTransfers.repositionId, repositionId),
+        eq(repositionTransfers.fromArea, fromArea),
+        eq(repositionTransfers.status, 'pending')
+      ))
+      .limit(1);
+
+    if (pendingTransfer.length > 0) {
+      // Si hay una transferencia pendiente, calcular el tiempo restante basado en cuando fue creada
+      const transferTime = new Date(pendingTransfer[0].createdAt);
+      const now = new Date();
+      const timeDiffMs = now.getTime() - transferTime.getTime();
+      const fiveMinutesMs = 5 * 60 * 1000;
+      const remainingMs = fiveMinutesMs - timeDiffMs;
+
+      if (remainingMs > 0) {
+        const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+        return {
+          hasRecent: true,
+          remainingTime: Math.max(1, remainingMinutes)
+        };
+      }
+    }
+
+    // También verificar transferencias recientes (últimos 5 minutos) independientemente del estado
+    const fiveMinutesAgo = new Date();
+    fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+
+    const recentTransfer = await db.select().from(repositionTransfers)
+      .where(and(
+        eq(repositionTransfers.repositionId, repositionId),
+        eq(repositionTransfers.fromArea, fromArea),
+        gte(repositionTransfers.createdAt, fiveMinutesAgo)
+      ))
+      .orderBy(desc(repositionTransfers.createdAt))
+      .limit(1);
+
+    if (recentTransfer.length > 0) {
+      const transferTime = new Date(recentTransfer[0].createdAt);
+      const now = new Date();
+      const timeDiffMs = now.getTime() - transferTime.getTime();
+      const remainingMs = (5 * 60 * 1000) - timeDiffMs;
+
+      if (remainingMs > 0) {
+        const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+        return {
+          hasRecent: true,
+          remainingTime: Math.max(1, remainingMinutes)
+        };
+      }
+    }
+
+    return { hasRecent: false };
+  }
+
+  async hasRecentOrderTransfer(orderId: number, fromArea: Area): Promise<{ hasRecent: boolean, remainingTime?: number }> {
+    const fiveMinutesAgo = new Date();
+    fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+
+    const recentTransfer = await db.select().from(transfers)
+      .where(and(
+        eq(transfers.orderId, orderId),
+        eq(transfers.fromArea, fromArea),
+        eq(transfers.status, 'pending'),
+        gte(transfers.createdAt, fiveMinutesAgo)
+      ))
+      .orderBy(desc(transfers.createdAt))
+      .limit(1);
+
+    if (recentTransfer.length > 0) {
+      const transferTime = new Date(recentTransfer[0].createdAt);
+      const now = new Date();
+      const timeDiffMs = now.getTime() - transferTime.getTime();
+      const remainingMs = (5 * 60 * 1000) - timeDiffMs;
+      const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+
+      return {
+        hasRecent: true,
+        remainingTime: remainingMinutes
+      };
+    }
+
+    return { hasRecent: false };
   }
 
   // Agenda Events
@@ -1611,7 +1738,7 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     const elapsedMilliseconds = endTime.getTime() - startTime.getTime();
     const elapsedMinutes = Math.floor(elapsedMilliseconds / (1000 * 60));
 
-    // Formatear tiempo transcurrido
+    //// Formatear tiempo transcurrido
     const hours = Math.floor(elapsedMinutes / 60);
     const minutes = elapsedMinutes % 60;
     const elapsedTimeFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
@@ -1797,6 +1924,85 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
     return timer || null;
   }
 
+  async clearEntireDatabase(deleteUsers?: boolean): Promise<void> {
+    try {
+      // Eliminar en orden correcto para evitar conflictos de foreign keys
+      await db.delete(documents);
+      await db.delete(repositionHistory);
+      await db.delete(repositionTimers);
+      await db.delete(repositionTransfers);
+      await db.delete(repositionMaterials);
+      await db.delete(repositionContrastFabrics);
+      await db.delete(repositionProducts);
+      await db.delete(repositionPieces);
+      await db.delete(repositions);
+      await db.delete(orderHistory);
+      await db.delete(transfers);
+      await db.delete(orderPieces);
+      await db.delete(orders);
+      await db.delete(notifications);
+      await db.delete(agendaEvents);
+      await db.delete(adminPasswords);
+
+      if (deleteUsers) {
+        await db.delete(users);
+      }
+
+      console.log('Database cleared successfully');
+    } catch (error) {
+      console.error('Error clearing database:', error);
+      throw error;
+    }
+  }
+
+  async resetUserSequence(): Promise<void> {
+    try {
+      await db.execute(sql`ALTER SEQUENCE users_id_seq RESTART WITH 1`);
+      console.log('User sequence reset successfully');
+    } catch (error) {
+      console.error('Error resetting user sequence:', error);
+      throw error;
+    }
+  }
+
+  async backupUsers(): Promise<any> {
+    try {
+      const allUsers = await db.select().from(users);
+      return {
+        users: allUsers,
+        timestamp: new Date().toISOString(),
+        version: '1.0'
+      };
+    } catch (error) {
+      console.error('Error backing up users:', error);
+      throw error;
+    }
+  }
+
+  async restoreUsers(backupData: any): Promise<any> {
+    try {
+      if (!backupData.users || !Array.isArray(backupData.users)) {
+        throw new Error('Formato de respaldo inválido');
+      }
+
+      // Limpiar usuarios existentes
+      await db.delete(users);
+
+      // Restaurar usuarios
+      if (backupData.users.length > 0) {
+        await db.insert(users).values(backupData.users);
+      }
+
+      return {
+        message: `${backupData.users.length} usuarios restaurados correctamente`,
+        restored: backupData.users.length
+      };
+    } catch (error) {
+      console.error('Error restoring users:', error);
+      throw error;
+    }
+  }
+
   // Funciones para gestión de materiales
   async updateRepositionMaterialStatus(repositionId: number, materialStatus: string, missingMaterials?: string, notes?: string): Promise<void> {
     const existingMaterial = await db.select().from(repositionMaterials)
@@ -1926,6 +2132,143 @@ async startRepositionTimer(repositionId: number, userId: number, area: Area): Pr
       .limit(1);
 
     return material[0] || null;
+  }
+
+  async updateReposition(repositionId: number, data: any, pieces: any[], userId: number): Promise<any> {
+    try {
+      console.log('UpdateReposition called with:', { repositionId, dataKeys: Object.keys(data), piecesLength: pieces?.length || 0 });
+
+      const { productos, telaContraste, ...mainRepositionData } = data;
+
+      // Para reposiciones, usar los datos del primer producto si existe
+      let updateData = { ...mainRepositionData };
+      if (data.type === 'repocision' && productos && productos.length > 0) {
+        const firstProduct = productos[0];
+        updateData = {
+          ...updateData,
+          modeloPrenda: firstProduct.modeloPrenda || '',
+          tela: firstProduct.tela || '',
+          color: firstProduct.color || '',
+          tipoPieza: firstProduct.tipoPieza || '',
+          consumoTela: firstProduct.consumoTela || 0
+        };
+      } else if (data.type === 'reproceso') {
+        // Para reprocesos, mantener los campos vacíos o usar valores por defecto
+        updateData = {
+          ...updateData,
+          modeloPrenda: updateData.modeloPrenda || '',
+          tela: updateData.tela || '',
+          color: updateData.color || '',
+          tipoPieza: updateData.tipoPieza || '',
+          consumoTela: updateData.consumoTela || 0
+        };
+      }
+
+      // Actualizar datos principales de la reposición
+      const [updatedReposition] = await db.update(repositions)
+        .set({
+          ...updateData,
+          status: 'pendiente' as RepositionStatus, // Cambiar status a pendiente para nueva aprobación
+          rejectionReason: null, // Limpiar razón de rechazo
+          approvedBy: null,
+          approvedAt: null,
+          updatedAt: new Date()
+        })
+        .where(eq(repositions.id, repositionId))
+        .returning();
+
+      console.log('Reposition updated successfully');
+
+      // Eliminar piezas existentes y agregar las nuevas
+      await db.delete(repositionPieces)
+        .where(eq(repositionPieces.repositionId, repositionId));
+
+      if (pieces && pieces.length > 0) {
+        const piecesToInsert = pieces.map(piece => ({
+          repositionId: repositionId,
+          talla: piece.talla || '',
+          cantidad: piece.cantidad || 1,
+          folioOriginal: piece.folioOriginal || null
+        }));
+
+        console.log('Inserting pieces:', piecesToInsert);
+        await db.insert(repositionPieces).values(piecesToInsert);
+      }
+
+      // Actualizar productos si existen (solo para reposiciones)
+      if (data.type === 'repocision' && productos && productos.length > 0) {
+        // Eliminar productos existentes
+        await db.delete(repositionProducts)
+          .where(eq(repositionProducts.repositionId, repositionId));
+
+        // Insertar nuevos productos
+        await db.insert(repositionProducts)
+          .values(productos.map((producto: any) => ({
+            repositionId: repositionId,
+            modeloPrenda: producto.modeloPrenda || '',
+            tela: producto.tela || '',
+            color: producto.color || '',
+            tipoPieza: producto.tipoPieza || '',
+            consumoTela: producto.consumoTela || 0
+          })));
+
+        console.log('Products updated successfully');
+      }
+
+      // Actualizar tela contraste si existe
+      if (telaContraste && telaContraste.tela) {
+        // Eliminar tela contraste existente
+        await db.delete(repositionContrastFabrics)
+          .where(eq(repositionContrastFabrics.repositionId, repositionId));
+
+        // Insertar nueva tela contraste
+        await db.insert(repositionContrastFabrics)
+          .values({
+            repositionId: repositionId,
+            tela: telaContraste.tela,
+            color: telaContraste.color || '',
+            consumo: telaContraste.consumo || 0
+          });
+
+        console.log('Contrast fabric updated successfully');
+      }
+
+      await this.addRepositionHistory(
+        repositionId,
+        'updated',
+        'Reposición editada y reenviada para aprobación',
+        userId
+      );
+
+      // Notificar a admin, operaciones y envíos sobre reposición editada
+      const adminUsers = await db.select().from(users)
+        .where(eq(users.area, 'admin'));
+
+      const operacionesUsers = await db.select().from(users)
+        .where(eq(users.area, 'operaciones'));
+
+      const enviosUsers = await db.select().from(users)
+        .where(eq(users.area, 'envios'));
+
+      const allTargetUsers = [...adminUsers, ...operacionesUsers, ...enviosUsers];
+
+      for (const targetUser of allTargetUsers) {
+        await this.createNotification({
+          userId: targetUser.id,
+          type: 'new_reposition',
+          title: 'Reposición Editada',
+          message: `La reposición ${updatedReposition.folio} ha sido editada y reenviada para aprobación`,
+          repositionId: repositionId,
+        });
+      }
+
+      console.log('UpdateReposition completed successfully');
+      return updatedReposition;
+
+    } catch (error) {
+      console.error('Error in updateReposition:', error);
+      throw error;
+    }
   }
 
   async saveRepositionDocument(documentData: {
@@ -2180,13 +2523,15 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
       currentArea: reposition.currentArea,
       status: reposition.status,
       createdAt: reposition.createdAt,
+      createdBy: reposition.createdBy,
       approvedAt: reposition.approvedAt,
       consumoTela: reposition.consumoTela,
       tipoAccidente: reposition.tipoAccidente,
       otroAccidente: reposition.otroAccidente,
       volverHacer: reposition.volverHacer,
       materialesImplicados: reposition.materialesImplicados,
-      telaContraste: contrastFabric.length > 0 ? contrastFabric[0] : null
+      telaContraste: contrastFabric.length > 0 ? contrastFabric[0] : null,
+      rejectionReason: reposition.rejectionReason
     };
   }
 
@@ -2816,6 +3161,66 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
       console.error('Error resetting user ID sequence:', error);
       throw new Error('Error al reiniciar la secuencia de ID de usuario: ' + error.message);
     }
+  }
+
+   async updateReposition(repositionId: number, data: any, pieces: any[], userId: number): Promise<any> {
+    // Update the main reposition record
+    await db.update(repositions)
+      .set({
+        ...data,
+        status: 'pendiente' as RepositionStatus,
+        approvedBy: null,
+        approvedAt: null,
+        rejectionReason: null,
+      })
+      .where(eq(repositions.id, repositionId));
+
+    // Delete existing pieces
+    await db.delete(repositionPieces)
+      .where(eq(repositionPieces.repositionId, repositionId));
+
+    // Insert new pieces
+    if (pieces && pieces.length > 0) {
+      await db.insert(repositionPieces).values(
+        pieces.map((piece: any) => ({
+          repositionId,
+          talla: piece.talla,
+          cantidad: piece.cantidad,
+          folioOriginal: piece.folioOriginal || null,
+        }))
+      );
+    }
+
+    // Add history entry
+    await this.addRepositionHistory(
+      repositionId,
+      'updated',
+      'Reposición editada y reenviada para aprobación',
+      userId
+    );
+
+    // Get the updated reposition
+    const reposition = await this.getRepositionById(repositionId);
+
+    // Notify approval users (admin, envios, operaciones)
+    const approvalUsers = await db.select().from(users)
+      .where(or(
+        eq(users.area, 'admin'),
+        eq(users.area, 'envios'),
+        eq(users.area, 'operaciones')
+      ));
+
+    for (const user of approvalUsers) {
+      await this.createNotification({
+        userId: user.id,
+        type: 'new_reposition',
+        title: 'Reposición Reenviada',
+        message: `La reposición ${reposition?.folio} ha sido editada y reenviada para aprobación`,
+        repositionId: repositionId,
+      });
+    }
+
+    return reposition;
   }
 }
 

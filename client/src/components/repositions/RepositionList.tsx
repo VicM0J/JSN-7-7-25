@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Plus, Eye, ArrowRight, CheckCircle, XCircle, Clock, MapPin, Activity, Trash2, Flag, Bell, Search, Play, Square, Printer, CalendarIcon } from 'lucide-react';
+import { Plus, Eye, ArrowRight, CheckCircle, XCircle, Clock, MapPin, Activity, Trash2, Flag, Bell, Search, Play, Square, Printer, CalendarIcon, X, Edit } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 import { RepositionForm } from './RepositionForm';
 import { RepositionDetail } from './RepositionDetail';
 import { RepositionTracker } from './RepositionTracker';
@@ -82,7 +83,38 @@ export function RepositionList({ userArea }: { userArea: string }) {
   const [completionNotes, setCompletionNotes] = useState<Record<number, string>>({});
   const [transferModalId, setTransferModalId] = useState<number | null>(null);
   const [manualTimes, setManualTimes] = useState<Record<number, { startTime: string; endTime: string; startDate: Date | undefined; endDate: Date | undefined }>>({});
+  const [completionRequests, setCompletionRequests] = useState<Record<number, number>>({});
+  const [editingReposition, setEditingReposition] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  
+  // Add authentication check
+  const { user } = useAuth();
+  
+  // Early return if no user is authenticated
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="text-lg font-semibold text-gray-600 mb-2">
+            No autenticado
+          </div>
+          <div className="text-sm text-gray-500">
+            Por favor, inicie sesión para acceder a las reposiciones
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Efecto para actualizar el contador del botón cada segundo
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Forzar re-render para actualizar el contador
+      setCompletionRequests(prev => ({ ...prev }));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const { data: repositions = [], isLoading } = useQuery<Reposition[]>({
     queryKey: ['repositions', filterArea, showHistory, includeDeleted],
@@ -95,8 +127,15 @@ export function RepositionList({ userArea }: { userArea: string }) {
         url = `/api/repositions?area=${filterArea}`;
       }
 
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Error al cargar las reposiciones');
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('No autenticado');
+        }
+        throw new Error('Error al cargar las reposiciones');
+      }
       const data = await response.json();
 
       // Para admin y envíos, cuando no están en modo historial, aplicar filtro por área si está seleccionado
@@ -115,16 +154,24 @@ export function RepositionList({ userArea }: { userArea: string }) {
 
       return data;
     },
-    refetchInterval: 5000, // Refetch every 5 seconds
+    enabled: !!user, // Only run query when user is authenticated
+    refetchInterval: showForm || editingReposition || selectedReposition || trackedReposition ? false : 30000, // 30 seconds, disabled when forms are open
     refetchOnMount: true,
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: showForm || editingReposition || selectedReposition || trackedReposition ? false : true // Disable when forms are open
   });
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["/api/notifications"],
     queryFn: async () => {
-      const res = await fetch("/api/notifications");
-      if (!res.ok) throw new Error('Error al cargar notificaciones');
+      const res = await fetch("/api/notifications", {
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('No autenticado');
+        }
+        throw new Error('Error al cargar notificaciones');
+      }
       const allNotifications = await res.json();
       return allNotifications.filter((n: any) => 
         !n.read && (
@@ -134,16 +181,38 @@ export function RepositionList({ userArea }: { userArea: string }) {
         )
       );
     },
+    enabled: !!user,
+    refetchInterval: showForm || editingReposition || selectedReposition || trackedReposition ? false : 60000, // 60 seconds, disabled when forms are open
+    refetchOnWindowFocus: showForm || editingReposition || selectedReposition || trackedReposition ? false : true
   });
 
   const { data: pendingTransfers = [] } = useQuery({
     queryKey: ['transferencias-pendientes-reposicion'],
     queryFn: async () => {
-      const response = await fetch('/api/repositions/transfers/pending');
-      if (!response.ok) return [];
+      const response = await fetch('/api/repositions/transfers/pending', {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('No autenticado');
+        }
+        throw new Error('Error al cargar transferencias pendientes');
+      }
       return response.json();
-    }
+    },
+    refetchInterval: showForm || editingReposition || selectedReposition || trackedReposition ? false : 30000, // 30 seconds, disabled when forms are open
+    refetchOnWindowFocus: showForm || editingReposition || selectedReposition || trackedReposition ? false : true,
+    enabled: !!user
   });
+
+  // Función para verificar si una reposición tiene transferencia pendiente desde mi área
+  const hasPendingTransferFromMyArea = (repositionId: number) => {
+    return pendingTransfers.some((transfer: any) => 
+      transfer.repositionId === repositionId && 
+      transfer.fromArea === userArea &&
+      transfer.status === 'pending'
+    );
+  };
 
   const transferMutation = useMutation({
     mutationFn: async ({ repositionId, toArea, notes, consumoTela }: { repositionId: number, toArea: string, notes?: string, consumoTela?: number }) => {
@@ -152,17 +221,39 @@ export function RepositionList({ userArea }: { userArea: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toArea, notes, consumoTela }),
       });
-      if (!response.ok) throw new Error('Error al transferir la reposición');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al crear la transferencia');
+      }
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['repositions'] });
       Swal.fire({
         title: '¡Éxito!',
-        text: 'Solicitud transferida correctamente',
+        text: 'Transferencia creada correctamente',
         icon: 'success',
         confirmButtonColor: '#8B5CF6'
       });
+    },
+    onError: (error: Error) => {
+      // Check if it's a rate limit error (429 status)
+      if (error.message.includes('esperar') && error.message.includes('minuto')) {
+        Swal.fire({
+          title: '⏱️ Transferencia Reciente',
+          text: error.message,
+          icon: 'warning',
+          confirmButtonColor: '#8B5CF6',
+          confirmButtonText: 'Entendido'
+        });
+      } else {
+        Swal.fire({
+          title: 'Error',
+          text: error.message,
+          icon: 'error',
+          confirmButtonColor: '#8B5CF6'
+        });
+      }
     }
   });
 
@@ -286,11 +377,11 @@ export function RepositionList({ userArea }: { userArea: string }) {
   });
 
   const processTransferMutation = useMutation({
-    mutationFn: async ({ transferId, action }: { transferId: number, action: 'accepted' | 'rejected' }) => {
+    mutationFn: async ({ transferId, action, reason }: { transferId: number, action: 'accepted' | 'rejected', reason?: string }) => {
       const response = await fetch(`/api/repositions/transfers/${transferId}/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, reason }),
       });
       if (!response.ok) throw new Error('Error al procesar la transferencia');
       return response.json();
@@ -461,25 +552,6 @@ export function RepositionList({ userArea }: { userArea: string }) {
   };
 
   const handleTransfer = async (repositionId: number) => {
-    // Verificar si se ha registrado el tiempo para esta área
-    try {
-      const response = await fetch(`/api/repositions/${repositionId}/timer`);
-      const timer = await response.json();
-
-      if (!timer || (!timer.manualStartTime && !timer.startTime)) {
-        Swal.fire({
-          title: 'Tiempo no registrado',
-          text: 'Debe registrar el tiempo de trabajo antes de transferir la reposición.',
-          icon: 'warning',
-          confirmButtonColor: '#8B5CF6',
-          confirmButtonText: 'Entendido'
-        });
-        return;
-      }
-    } catch (error) {
-      console.error('Error verificando timer:', error);
-    }
-
     // Obtener los datos de la reposición para verificar el tipo
     const currentReposition = repositions.find(r => r.id === repositionId);
     if (!currentReposition) {
@@ -490,6 +562,28 @@ export function RepositionList({ userArea }: { userArea: string }) {
         confirmButtonColor: '#8B5CF6'
       });
       return;
+    }
+
+    // Verificar si se ha registrado el tiempo para esta área
+    // Solo pedir tiempo si el área actual NO es la que creó la reposición
+    if (currentReposition.solicitanteArea !== userArea) {
+      try {
+        const response = await fetch(`/api/repositions/${repositionId}/timer`);
+        const timer = await response.json();
+
+        if (!timer || (!timer.manualStartTime && !timer.startTime)) {
+          Swal.fire({
+            title: 'Tiempo no registrado',
+            text: 'Debe registrar el tiempo de trabajo antes de transferir la reposición.',
+            icon: 'warning',
+            confirmButtonColor: '#8B5CF6',
+            confirmButtonText: 'Entendido'
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error verificando timer:', error);
+      }
     }
 
     const { value: toArea } = await Swal.fire({
@@ -549,16 +643,41 @@ export function RepositionList({ userArea }: { userArea: string }) {
   };
 
   const handleApproval = async (repositionId: number, action: 'aprobado' | 'rechazado') => {
-    const { value: notes } = await Swal.fire({
-      title: `${action === 'aprobado' ? 'Aprobar' : 'Rechazar'} Solicitud`,
-      input: 'textarea',
-      inputPlaceholder: 'Comentarios (opcional)',
-      showCancelButton: true,
-      confirmButtonColor: '#8B5CF6'
-    });
+    if (action === 'rechazado') {
+      const { value: notes } = await Swal.fire({
+        title: 'Rechazar Solicitud',
+        text: 'Debe proporcionar un motivo para el rechazo',
+        input: 'textarea',
+        inputPlaceholder: 'Describe el motivo del rechazo (mínimo 10 caracteres) *',
+        showCancelButton: true,
+        confirmButtonColor: '#EF4444',
+        confirmButtonText: 'Rechazar',
+        inputValidator: (value) => {
+          if (!value || value.trim().length === 0) {
+            return 'El motivo del rechazo es obligatorio';
+          }
+          if (value.trim().length < 10) {
+            return 'El motivo debe tener al menos 10 caracteres';
+          }
+        }
+      });
 
-    if (notes !== undefined) {
-      approveMutation.mutate({ repositionId, action, notes });
+      if (notes !== undefined) {
+        approveMutation.mutate({ repositionId, action, notes: notes.trim() });
+      }
+    } else {
+      const { value: notes } = await Swal.fire({
+        title: 'Aprobar Solicitud',
+        input: 'textarea',
+        inputPlaceholder: 'Comentarios (opcional)',
+        showCancelButton: true,
+        confirmButtonColor: '#10B981',
+        confirmButtonText: 'Aprobar'
+      });
+
+      if (notes !== undefined) {
+        approveMutation.mutate({ repositionId, action, notes });
+      }
     }
   };
 
@@ -617,23 +736,63 @@ export function RepositionList({ userArea }: { userArea: string }) {
     });
 
     if (notes !== undefined) {
+      // Bloquear botón por 3 minutos para solicitudes de finalización
+      if (userArea !== 'admin' && userArea !== 'envios') {
+        setCompletionRequests(prev => ({ ...prev, [repositionId]: Date.now() }));
+        setTimeout(() => {
+          setCompletionRequests(prev => {
+            const updated = { ...prev };
+            delete updated[repositionId];
+            return updated;
+          });
+        }, 3 * 60 * 1000); // 3 minutos
+      }
       completeMutation.mutate({ repositionId, notes });
     }
   };
 
   const handleProcessTransfer = async (transferId: number, action: 'accepted' | 'rejected') => {
-    const result = await Swal.fire({
-      title: `¿${action === 'accepted' ? 'Aceptar' : 'Rechazar'} transferencia?`,
-      text: `Esta acción ${action === 'accepted' ? 'moverá la reposición a tu área' : 'rechazará la transferencia'}`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: action === 'accepted' ? '#10B981' : '#EF4444',
-      confirmButtonText: action === 'accepted' ? 'Aceptar' : 'Rechazar',
-      cancelButtonText: 'Cancelar'
-    });
+    if (action === 'rejected') {
+      // Para rechazos, pedir motivo obligatorio
+      const { value: reason } = await Swal.fire({
+        title: '¿Rechazar transferencia?',
+        text: 'Esta acción rechazará la transferencia',
+        input: 'textarea',
+        inputPlaceholder: 'Describe el motivo del rechazo (mínimo 5 caracteres) *',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#EF4444',
+        cancelButtonColor: '#6B7280',
+        confirmButtonText: 'Rechazar',
+        cancelButtonText: 'Cancelar',
+        inputValidator: (value) => {
+          if (!value || value.trim().length === 0) {
+            return 'Debes proporcionar un motivo para el rechazo';
+          }
+          if (value.trim().length < 5) {
+            return 'El motivo debe tener al menos 5 caracteres';
+          }
+        }
+      });
 
-    if (result.isConfirmed) {
-      processTransferMutation.mutate({ transferId, action });
+      if (reason !== undefined && reason.trim().length >= 5) {
+        processTransferMutation.mutate({ transferId, action, reason: reason.trim() });
+      }
+    } else {
+      // Para aceptaciones, solo mostrar confirmación
+      const result = await Swal.fire({
+        title: '¿Aceptar transferencia?',
+        text: 'Esta acción moverá la reposición a tu área',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10B981',
+        confirmButtonText: 'Aceptar',
+        cancelButtonText: 'Cancelar'
+      });
+
+      if (result.isConfirmed) {
+        processTransferMutation.mutate({ transferId, action });
+      }
     }
   };
 
@@ -712,7 +871,47 @@ export function RepositionList({ userArea }: { userArea: string }) {
     return names[area] || area.charAt(0).toUpperCase() + area.slice(1);
   };
 
-  if (isLoading) {
+  const canRequestCompletion = (reposition: Reposition) => {
+    // Solo admin y envios pueden finalizar directamente
+    if (userArea === 'admin' || userArea === 'envios') {
+      return true;
+    }
+
+    // Solo el creador puede solicitar finalización
+    if (reposition.solicitanteArea !== userArea) {
+      return false;
+    }
+
+    // Verificar si ya solicitó finalización en los últimos 3 minutos
+    const lastRequest = completionRequests[reposition.id];
+    if (lastRequest) {
+      const timeDiff = Date.now() - lastRequest;
+      return timeDiff >= 3 * 60 * 1000; // 3 minutos
+    }
+
+    return true;
+  };
+
+  const getCompletionButtonText = (reposition: Reposition) => {
+    if (userArea === 'admin' || userArea === 'envios') {
+      return 'Finalizar';
+    }
+
+    const lastRequest = completionRequests[reposition.id];
+    if (lastRequest) {
+      const timeDiff = Date.now() - lastRequest;
+      const remainingTime = Math.ceil((3 * 60 * 1000 - timeDiff) / 1000);
+      if (remainingTime > 0) {
+        const minutes = Math.floor(remainingTime / 60);
+        const seconds = remainingTime % 60;
+        return `Esperar ${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }
+    }
+
+    return 'Solicitar Finalización';
+  };
+
+  if (isLoading && !showForm && !editingReposition && !selectedReposition && !trackedReposition) {
     return <div className="text-center py-8">Cargando solicitudes...</div>;
   }
 
@@ -1028,6 +1227,18 @@ export function RepositionList({ userArea }: { userArea: string }) {
                       Ver Detalles
                     </Button>
 
+                    {reposition.status === 'rechazado' && reposition.solicitanteArea === userArea && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 hover:bg-blue-50"
+                        onClick={() => setEditingReposition(reposition.id)}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Editar y Reenviar
+                      </Button>
+                    )}
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -1057,54 +1268,78 @@ export function RepositionList({ userArea }: { userArea: string }) {
                             <Button
                               size="sm"
                               variant="outline"
+                              className={`${
+                                hasPendingTransferFromMyArea(reposition.id)
+                                  ? "text-orange-600 border-orange-300 hover:bg-orange-50 cursor-not-allowed"
+                                  : "text-purple-600 hover:bg-purple-50"
+                              }`}
                               onClick={() => handleTransfer(reposition.id)}
+                              disabled={hasPendingTransferFromMyArea(reposition.id)}
                             >
-                              <ArrowRight className="w-4 h-4 mr-2" />
-                              Transferir
+                              {hasPendingTransferFromMyArea(reposition.id) ? (
+                                <>
+                                  <Clock className="w-4 h-4 mr-2" />
+                                  Transferencia Pendiente
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowRight className="w-4 h-4 mr-2" />
+                                  Transferir
+                                </>
+                              )}
                             </Button>
 
-                            {/* Timer Controls */}
+
                             <div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-green-600 hover:bg-green-50 mb-2"
-                                onClick={async () => {
-                                  // Verificar si ya existe un tiempo registrado para esta área
-                                  try {
-                                    const response = await fetch(`/api/repositions/${reposition.id}/timer`);
+                              {reposition.solicitanteArea === userArea ? (
+                                <div className="mb-2">
+                                  <Badge variant="outline" className="text-blue-600 border-blue-300">
+                                    Área creadora - No requiere tiempo
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-600 hover:bg-green-50 mb-2"
+                                  onClick={async () => {
+                                    // Verificar si ya existe un tiempo registrado para esta área
+                                    try {
+                                      const response = await fetch(`/api/repositions/${reposition.id}/timer`);
 
-                                    if (response.ok) {
-                                      const timer = await response.json();
+                                      if (response.ok) {
+                                        const timer = await response.json();
 
-                                      if (timer && (timer.manualStartTime || timer.startTime)) {
-                                        Swal.fire({
-                                          title: 'Tiempo ya registrado',
-                                          text: 'Ya existe un tiempo registrado para esta reposición en su área.',
-                                          icon: 'info',
-                                          confirmButtonColor: '#8B5CF6',
-                                          confirmButtonText: 'Entendido'
-                                        });
-                                        return;
+                                        // Si ya existe un timer registrado, mostrar mensaje
+                                        if (timer && (timer.manualStartTime || timer.startTime)) {
+                                          Swal.fire({
+                                            title: 'Tiempo ya registrado',
+                                            text: 'Ya existe un tiempo registrado para esta área en esta reposición.',
+                                            icon: 'info',
+                                            confirmButtonColor: '#8B5CF6',
+                                            confirmButtonText: 'Entendido'
+                                          });
+                                          return;
+                                        }
                                       }
+                                    } catch (error) {
+                                      console.error('Error verificando timer existente:', error);
+                                      // Si hay error, permitir continuar con el registro
+                                      console.log('Proceeding with registration');
                                     }
-                                  } catch (error) {
-                                    console.error('Error checking timer:', error);
-                                    // Continuar con el registro si hay error al verificar
-                                    console.log('Proceeding with registration');
-                                  }
 
-                                  const existing = manualTimes[reposition.id];
-                                  if (existing) {
-                                    setManualTimes(prev => ({ ...prev, [reposition.id]: existing }));
-                                  } else {
-                                    setManualTimes(prev => ({ ...prev, [reposition.id]: { startTime: '', endTime: '', startDate: new Date(), endDate: new Date() } }));
-                                  }
-                                }}
-                              >
-                                <Clock className="w-4 h-4 mr-2" />
-                                Registrar Tiempo
-                              </Button>
+                                    const existing = manualTimes[reposition.id];
+                                    if (existing) {
+                                      setManualTimes(prev => ({ ...prev, [reposition.id]: existing }));
+                                    } else {
+                                      setManualTimes(prev => ({ ...prev, [reposition.id]: { startTime: '', endTime: '', startDate: new Date(), endDate: new Date() } }));
+                                    }
+                                  }}
+                                >
+                                  <Clock className="w-4 h-4 mr-2" />
+                                  Registrar Tiempo
+                                </Button>
+                              )}
 
                               {manualTimes[reposition.id] && (
                                 <div className="space-y-3 mt-2 p-3 border rounded-lg bg-gray-50">
@@ -1257,15 +1492,21 @@ export function RepositionList({ userArea }: { userArea: string }) {
 
                     {reposition.status !== 'completado' && reposition.status !== 'eliminado' && reposition.status !== 'cancelado' && (
                       <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-purple-600 hover:bg-purple-50"
-                          onClick={() => handleComplete(reposition.id)}
-                        >
-                          <Flag className="w-4 h-4 mr-2" />
-                          {userArea === 'admin' || userArea === 'envios' ? 'Finalizar' : 'Solicitar Finalización'}
-                        </Button>
+                        {/* Botón de finalización solo para admin/envios o el creador de la solicitud */}
+                        {(userArea === 'admin' || userArea === 'envios' || reposition.solicitanteArea === userArea) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={`text-purple-600 hover:bg-purple-50 ${
+                              !canRequestCompletion(reposition) ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            onClick={() => handleComplete(reposition.id)}
+                            disabled={!canRequestCompletion(reposition)}
+                          >
+                            <Flag className="w-4 h-4 mr-2" />
+                            {getCompletionButtonText(reposition)}
+                          </Button>
+                        )}
 
                         {(userArea === 'admin' || userArea === 'envios') && (
                           <Button
@@ -1302,6 +1543,12 @@ export function RepositionList({ userArea }: { userArea: string }) {
       </div>
 
       {showForm && <RepositionForm onClose={() => setShowForm(false)} />}
+      {editingReposition && (
+        <RepositionForm
+          repositionId={editingReposition}
+          onClose={() => setEditingReposition(null)}
+        />
+      )}
       {selectedReposition && (
         <RepositionDetail
           repositionId={selectedReposition}

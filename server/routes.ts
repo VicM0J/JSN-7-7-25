@@ -1,3 +1,4 @@
+
 import type { Express } from "express";
 import { Router } from "express";
 import { createServer, type Server } from "http";
@@ -8,11 +9,12 @@ import { insertOrderSchema, insertTransferSchema, insertRepositionSchema, insert
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { eq, desc, and, or, ne, isNotNull, isNull, count } from 'drizzle-orm';
+import { db } from './db';
+import { repositionTransfers } from '@shared/schema';
 import { authenticateToken } from './auth';
 import path from 'path';
 import fs from 'fs';
 import { upload, uploadBackup, handleMulterError } from './upload';
-
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -395,6 +397,15 @@ function registerTransferRoutes(app: Express) {
         });
       }
 
+      // Verificar si hay una transferencia reciente pendiente
+      const recentTransferCheck = await storage.hasRecentOrderTransfer(orderId, user.area);
+      if (recentTransferCheck.hasRecent) {
+        return res.status(429).json({ 
+          message: `Debes esperar ${recentTransferCheck.remainingTime} minuto(s) antes de poder transferir nuevamente. Hay una transferencia pendiente de procesamiento.`,
+          remainingTime: recentTransferCheck.remainingTime
+        });
+      }
+
       const validatedData = insertTransferSchema.parse({
         orderId,
         fromArea: user.area,
@@ -699,7 +710,6 @@ function registerAdminRoutes(app: Express) {
   app.use("/api/admin", router);
 }
 
-
 function registerDashboardRoutes(app: Express) {
   app.get("/api/dashboard/stats", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Autenticación requerida" });
@@ -748,7 +758,6 @@ function registerDashboardRoutes(app: Express) {
     }
   });
 }
-
 
 function configureWebSocket(app: Express): Server {
   const httpServer = createServer(app);
@@ -810,7 +819,6 @@ function configureWebSocket(app: Express): Server {
   
   return httpServer;
 }
-
 
 function registerRepositionRoutes(app: Express) {
   const router = Router();
@@ -977,6 +985,33 @@ function registerRepositionRoutes(app: Express) {
         return res.status(400).json({ message: "No se puede transferir una reposición eliminada" });
       }
 
+      // Verificar si hay una transferencia reciente pendiente
+      const recentTransferCheck = await storage.hasRecentTransfer(repositionId, user.area);
+      if (recentTransferCheck.hasRecent) {
+        console.log(`Transfer blocked for reposition ${repositionId} from area ${user.area}, remaining time: ${recentTransferCheck.remainingTime} minutes`);
+        return res.status(429).json({ 
+          message: `⏱️ Debes esperar ${recentTransferCheck.remainingTime} minuto(s) antes de poder transferir nuevamente. Hay una transferencia pendiente de procesamiento desde tu área.`,
+          remainingTime: recentTransferCheck.remainingTime,
+          type: 'rate_limit'
+        });
+      }
+
+      // Verificación adicional: comprobar directamente en la base de datos si hay transferencias pendientes
+      const existingPendingTransfers = await db.select().from(repositionTransfers)
+        .where(and(
+          eq(repositionTransfers.repositionId, repositionId),
+          eq(repositionTransfers.fromArea, user.area),
+          eq(repositionTransfers.status, 'pending')
+        ));
+
+      if (existingPendingTransfers.length > 0) {
+        console.log(`Found existing pending transfer for reposition ${repositionId} from area ${user.area}`);
+        return res.status(429).json({ 
+          message: `Ya existe una transferencia pendiente desde tu área para esta reposición. Espera a que sea procesada antes de crear una nueva.`,
+          type: 'pending_exists'
+        });
+      }
+
       // Si viene desde Corte y hay consumo de tela, actualizar la reposición
       if (user.area === 'corte' && consumoTela !== undefined) {
         await storage.updateRepositionConsumo(repositionId, consumoTela);
@@ -1011,11 +1046,122 @@ function registerRepositionRoutes(app: Express) {
       }
       const { action, notes } = req.body;
 
+      // Require rejection reason for rejections
+      if (action === 'rechazado') {
+        if (!notes || notes.trim().length === 0) {
+          return res.status(400).json({ message: "El motivo del rechazo es obligatorio" });
+        }
+        if (notes.trim().length < 10) {
+          return res.status(400).json({ message: "El motivo del rechazo debe tener al menos 10 caracteres" });
+        }
+      }
+
       const result = await storage.approveReposition(repositionId, action, user.id, notes);
       res.json(result);
     } catch (error) {
       console.error('Approve reposition error:', error);
       res.status(400).json({ message: "Error al procesar la aprobación" });
+    }
+  });
+
+  router.put("/:id", authenticateToken, upload.array('documents', 5), handleMulterError, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const repositionId = parseInt(req.params.id);
+      
+      console.log('Edit reposition request:', { repositionId, userId: user?.id, hasUser: !!user });
+      
+      if (isNaN(repositionId)) {
+        return res.status(400).json({ message: "ID de reposición inválido" });
+      }
+
+      if (!user) {
+        return res.status(401).json({ message: "Usuario no autenticado" });
+      }
+
+      // Check if the reposition exists and is rejected
+      const existingReposition = await storage.getRepositionById(repositionId);
+      if (!existingReposition) {
+        return res.status(404).json({ message: "Reposición no encontrada" });
+      }
+
+      console.log('Existing reposition:', { 
+        id: existingReposition.id, 
+        status: existingReposition.status, 
+        createdBy: existingReposition.createdBy 
+      });
+
+      if (existingReposition.status !== 'rechazado') {
+        return res.status(400).json({ message: "Solo se pueden editar reposiciones rechazadas" });
+      }
+
+      if (existingReposition.createdBy !== user.id) {
+        return res.status(403).json({ message: "Solo el creador puede editar esta reposición" });
+      }
+
+      let repositionData;
+      try {
+        if (req.body.repositionData) {
+          repositionData = JSON.parse(req.body.repositionData);
+        } else {
+          repositionData = req.body;
+        }
+      } catch (parseError) {
+        console.error('Error parsing repository data:', parseError);
+        return res.status(400).json({ message: "Datos de reposición inválidos" });
+      }
+
+      console.log('Parsed reposition data:', { 
+        type: repositionData.type, 
+        hasProductos: !!repositionData.productos,
+        hasPieces: !!repositionData.pieces 
+      });
+
+      const { pieces, productos, telaContraste, ...mainData } = repositionData;
+
+      // Collect all pieces from all products for reposiciones, or use direct pieces for reprocesos
+      let allPieces = [];
+      if (repositionData.type === 'repocision' && productos && productos.length > 0) {
+        allPieces = productos.flatMap((producto: any) => producto.pieces || []);
+      } else if (pieces && pieces.length > 0) {
+        allPieces = pieces;
+      }
+
+      console.log('All pieces to update:', allPieces.length);
+
+      const updatedReposition = await storage.updateReposition(
+        repositionId, 
+        {
+          ...mainData,
+          productos,
+          telaContraste: mainData.tieneTelaContraste ? telaContraste : undefined
+        }, 
+        allPieces, 
+        user.id
+      );
+
+      // Save new documents if any
+      const files = req.files as Express.Multer.File[];
+      if (files && files.length > 0) {
+        console.log('Saving documents:', files.length);
+        for (const file of files) {
+          await storage.saveRepositionDocument({
+            repositionId: repositionId,
+            filename: file.filename,
+            originalName: file.originalname,
+            size: file.size,
+            path: file.path,
+            uploadedBy: user.id
+          });
+        }
+      }
+
+      console.log('Reposition updated successfully');
+      res.json(updatedReposition);
+    } catch (error) {
+      console.error('Update reposition error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Error al actualizar la reposición";
+      res.status(500).json({ message: errorMessage });
     }
   });
 
@@ -1028,9 +1174,19 @@ function registerRepositionRoutes(app: Express) {
       if (isNaN(transferId)) {
         return res.status(400).json({ message: "ID de transferencia inválido" });
       }
-      const { action } = req.body;
+      const { action, reason } = req.body;
 
-      const result = await storage.processRepositionTransfer(transferId, action, user.id);
+      // Validar que se proporcione razón para rechazos
+      if (action === 'rejected') {
+        if (!reason || reason.trim().length === 0) {
+          return res.status(400).json({ message: "El motivo del rechazo es obligatorio" });
+        }
+        if (reason.trim().length < 5) {
+          return res.status(400).json({ message: "El motivo debe tener al menos 5 caracteres" });
+        }
+      }
+
+      const result = await storage.processRepositionTransfer(transferId, action, user.id, reason?.trim());
       res.json(result);
     } catch (error) {
       console.error('Process transfer error:', error);
@@ -1633,8 +1789,6 @@ function registerAlmacenRoutes(app: Express) {
       res.status(500).json({ message: "Error al obtener reposiciones" });
     }
   });
-
-
 
   // Pausar reposición
   router.post("/repositions/:id/pause", async (req, res) => {

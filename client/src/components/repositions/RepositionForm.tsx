@@ -13,11 +13,12 @@ import { Switch } from '@/components/ui/switch';
 import { FileUpload } from '@/components/ui/file-upload';
 import Swal from 'sweetalert2';
 import { useEffect } from 'react';
+  import { useQuery } from '@tanstack/react-query';
 
 
   interface RepositionPiece {
     talla: string;
-    cantidad: number;
+    cantidad: number | string;
     folioOriginal?: string;
   }
 
@@ -91,7 +92,7 @@ import { useEffect } from 'react';
     'Otro'
   ];
 
-  export function RepositionForm({ onClose }: { onClose: () => void }) {
+  export function RepositionForm({ onClose, repositionId }: { onClose: () => void; repositionId?: number }) {
     const queryClient = useQueryClient();
     const [productos, setProductos] = useState<ProductInfo[]>([{ 
       modeloPrenda: '', 
@@ -108,6 +109,30 @@ import { useEffect } from 'react';
       tipoPiezas: [{ tipoPieza: '', pieces: [{ talla: '', cantidad: 1, folioOriginal: '' }] }]
     });
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Query to load existing reposition data if editing
+    const { data: existingReposition } = useQuery({
+      queryKey: ['reposition', repositionId],
+      queryFn: async () => {
+        if (!repositionId) return null;
+        const response = await fetch(`/api/repositions/${repositionId}`);
+        if (!response.ok) throw new Error('Failed to fetch reposition');
+        return response.json();
+      },
+      enabled: !!repositionId
+    });
+
+    const { data: existingPieces = [] } = useQuery({
+      queryKey: ['reposition-pieces', repositionId],
+      queryFn: async () => {
+        if (!repositionId) return [];
+        const response = await fetch(`/api/repositions/${repositionId}/pieces`);
+        if (!response.ok) return [];
+        return response.json();
+      },
+      enabled: !!repositionId
+    });
 
     const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<RepositionFormData>({
       defaultValues: {
@@ -125,6 +150,43 @@ import { useEffect } from 'react';
       register('volverHacer');
       register('materialesImplicados');
     }, [register]);
+
+    // Populate form with existing data when editing
+    useEffect(() => {
+      if (existingReposition && existingPieces.length > 0) {
+        setValue('type', existingReposition.type);
+        setValue('solicitanteNombre', existingReposition.solicitanteNombre);
+        setValue('noSolicitud', existingReposition.noSolicitud);
+        setValue('noHoja', existingReposition.noHoja || '');
+        setValue('fechaCorte', existingReposition.fechaCorte ? existingReposition.fechaCorte.split('T')[0] : '');
+        setValue('causanteDano', existingReposition.causanteDano);
+        setValue('tipoAccidente', existingReposition.tipoAccidente || '');
+        setValue('otroAccidente', existingReposition.otroAccidente || '');
+        setValue('solicitanteArea', existingReposition.solicitanteArea);
+        setValue('currentArea', existingReposition.currentArea);
+        setValue('descripcionSuceso', existingReposition.descripcionSuceso);
+        setValue('urgencia', existingReposition.urgencia);
+        setValue('observaciones', existingReposition.observaciones || '');
+        setValue('volverHacer', existingReposition.volverHacer || '');
+        setValue('materialesImplicados', existingReposition.materialesImplicados || '');
+
+        if (existingReposition.type === 'repocision') {
+          const newProductos = [{
+            modeloPrenda: existingReposition.modeloPrenda || '',
+            tela: existingReposition.tela || '',
+            color: existingReposition.color || '',
+            tipoPieza: existingReposition.tipoPieza || '',
+            consumoTela: existingReposition.consumoTela || 0,
+            pieces: existingPieces.map((piece: any) => ({
+              talla: piece.talla,
+              cantidad: piece.cantidad,
+              folioOriginal: piece.folioOriginal || ''
+            }))
+          }];
+          setProductos(newProductos);
+        }
+      }
+    }, [existingReposition, existingPieces, setValue]);
 
 
 
@@ -148,21 +210,27 @@ import { useEffect } from 'react';
           formDataToSend.append('documents', file);
         });
 
-        const response = await fetch('/api/repositions', {
-          method: 'POST',
+        const url = repositionId ? `/api/repositions/${repositionId}` : '/api/repositions';
+        const method = repositionId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+          method,
           body: formDataToSend,
         });
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to create reposition');
+          throw new Error(errorData.message || `Failed to ${repositionId ? 'update' : 'create'} reposition`);
         }
         return response.json();
       },
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['repositions'] });
+        if (repositionId) {
+          queryClient.invalidateQueries({ queryKey: ['reposition', repositionId] });
+        }
         Swal.fire({
           title: '¡Éxito!',
-          text: 'Solicitud de reposición creada correctamente',
+          text: repositionId ? 'Solicitud editada y reenviada para aprobación' : 'Solicitud de reposición creada correctamente',
           icon: 'success',
           confirmButtonColor: '#8B5CF6'
         });
@@ -171,7 +239,7 @@ import { useEffect } from 'react';
       onError: (error) => {
         Swal.fire({
           title: 'Error',
-          text: 'Error al crear la solicitud de reposición',
+          text: repositionId ? 'Error al editar la solicitud' : 'Error al crear la solicitud de reposición',
           icon: 'error',
           confirmButtonColor: '#8B5CF6'
         });
@@ -379,7 +447,9 @@ import { useEffect } from 'react';
         <div className="bg-card rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-purple-800">Nueva Solicitud</h2>
+              <h2 className="text-2xl font-bold text-purple-800">
+                {repositionId ? 'Editar Solicitud' : 'Nueva Solicitud'}
+              </h2>
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancelar
               </Button>
@@ -420,6 +490,7 @@ import { useEffect } from 'react';
                     id="solicitanteNombre"
                     {...register('solicitanteNombre', { required: 'Campo requerido' })}
                     className={errors.solicitanteNombre ? 'border-red-500' : ''}
+                    uppercase={true}
                   />
                 </div>
                 <div>
@@ -441,11 +512,12 @@ import { useEffect } from 'react';
                     id="noSolicitud"
                     {...register('noSolicitud', { required: 'Campo requerido' })}
                     className={errors.noSolicitud ? 'border-red-500' : ''}
+                    uppercase={true}
                   />
                 </div>
                 <div>
                   <Label htmlFor="noHoja">Número de Hoja</Label>
-                  <Input id="noHoja" {...register('noHoja')} />
+                  <Input id="noHoja" {...register('noHoja')} uppercase={true} />
                 </div>
                 <div>
                   <Label htmlFor="fechaCorte">Fecha de Corte</Label>
@@ -470,6 +542,7 @@ import { useEffect } from 'react';
                     id="causanteDano"
                     {...register('causanteDano', { required: 'Campo requerido' })}
                     className={errors.causanteDano ? 'border-red-500' : ''}
+                    uppercase={true}
                   />
                 </div>
 
@@ -503,6 +576,7 @@ import { useEffect } from 'react';
                       })}
                       className={errors.otroAccidente ? 'border-red-500' : ''}
                       placeholder="Describe el tipo de accidente"
+                      uppercase={true}
                     />
                   </div>
                 )}
@@ -554,6 +628,7 @@ import { useEffect } from 'react';
                     {...register('descripcionSuceso', { required: 'Campo requerido' })}
                     className={errors.descripcionSuceso ? 'border-red-500' : ''}
                     rows={3}
+                    uppercase={true}
                   />
                 </div>
               </CardContent>
@@ -597,6 +672,7 @@ import { useEffect } from 'react';
                               value={producto.modeloPrenda}
                               onChange={(e) => updateProducto(productIndex, 'modeloPrenda', e.target.value)}
                               placeholder="Modelo de prenda"
+                              uppercase={true}
                             />
                           </div>
                           <div>
@@ -605,6 +681,7 @@ import { useEffect } from 'react';
                               value={producto.tela}
                               onChange={(e) => updateProducto(productIndex, 'tela', e.target.value)}
                               placeholder="Tipo de tela"
+                              uppercase={true}
                             />
                           </div>
                           <div>
@@ -613,6 +690,7 @@ import { useEffect } from 'react';
                               value={producto.color}
                               onChange={(e) => updateProducto(productIndex, 'color', e.target.value)}
                               placeholder="Color"
+                              uppercase={true}
                             />
                           </div>
                           <div>
@@ -621,6 +699,7 @@ import { useEffect } from 'react';
                               value={producto.tipoPieza}
                               onChange={(e) => updateProducto(productIndex, 'tipoPieza', e.target.value)}
                               placeholder="ej. Manga, Delantero, Cuello"
+                              uppercase={true}
                             />
                           </div>
                           {watch('currentArea') === 'corte' && (
@@ -661,6 +740,7 @@ import { useEffect } from 'react';
                                     value={piece.talla}
                                     onChange={(e) => updateProductPiece(productIndex, pieceIndex, 'talla', e.target.value)}
                                     placeholder="ej. S, M, L, XL"
+                                    uppercase={true}
                                   />
                                 </div>
                                 <div className="flex-1">
@@ -668,8 +748,26 @@ import { useEffect } from 'react';
                                   <Input
                                     type="number"
                                     min="1"
-                                    value={piece.cantidad}
-                                    onChange={(e) => updateProductPiece(productIndex, pieceIndex, 'cantidad', parseInt(e.target.value) || 1)}
+                                    value={piece.cantidad === 1 ? '' : piece.cantidad}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      if (value === '' || value === '0') {
+                                        updateProductPiece(productIndex, pieceIndex, 'cantidad', '');
+                                      } else {
+                                        const numValue = parseInt(value);
+                                        if (!isNaN(numValue) && numValue > 0) {
+                                          updateProductPiece(productIndex, pieceIndex, 'cantidad', numValue);
+                                        }
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      if (e.target.value === '' || e.target.value === '0') {
+                                        updateProductPiece(productIndex, pieceIndex, 'cantidad', 1);
+                                      }
+                                    }}
+                                    placeholder="1"
+                                    className="text-center"
+                                    uppercase={true}
                                   />
                                 </div>
                                 <div className="flex-1">
@@ -678,6 +776,7 @@ import { useEffect } from 'react';
                                     value={piece.folioOriginal || ''}
                                     onChange={(e) => updateProductPiece(productIndex, pieceIndex, 'folioOriginal', e.target.value)}
                                     placeholder="Opcional"
+                                    uppercase={true}
                                   />
                                 </div>
                                 {producto.pieces.length > 1 && (
@@ -719,6 +818,7 @@ import { useEffect } from 'react';
                       className={errors.volverHacer ? 'border-red-500' : ''}
                       rows={3}
                       placeholder="Describe detalladamente qué procesos deben repetirse..."
+                      uppercase={true}
                     />
                   </div>
                   <div>
@@ -731,6 +831,7 @@ import { useEffect } from 'react';
                       className={errors.materialesImplicados ? 'border-red-500' : ''}
                       rows={3}
                       placeholder="Lista los materiales que están involucrados en el reproceso..."
+                      uppercase={true}
                     />
                   </div>
                 </CardContent>
@@ -774,6 +875,7 @@ import { useEffect } from 'react';
                           value={contrastFabric.tela}
                           onChange={(e) => setContrastFabric(prev => ({ ...prev, tela: e.target.value }))}
                           placeholder="Tipo de segunda tela"
+                          uppercase={true}
                         />
                       </div>
                       <div>
@@ -782,6 +884,7 @@ import { useEffect } from 'react';
                           value={contrastFabric.color}
                           onChange={(e) => setContrastFabric(prev => ({ ...prev, color: e.target.value }))}
                           placeholder="Color"
+                          uppercase={true}
                         />
                       </div>
                       {watch('currentArea') === 'corte' && (
@@ -823,6 +926,7 @@ import { useEffect } from 'react';
                               value={tipoPieza.tipoPieza}
                               onChange={(e) => updateContrastPieceType(pieceTypeIndex, e.target.value)}
                               placeholder="ej. Manga, Delantero, Cuello"
+                              uppercase={true}
                             />
                           </div>
 
@@ -849,6 +953,7 @@ import { useEffect } from 'react';
                                       value={piece.talla}
                                       onChange={(e) => updateContrastPiece(pieceTypeIndex, pieceIndex, 'talla', e.target.value)}
                                       placeholder="ej. S, M, L, XL"
+                                      uppercase={true}
                                     />
                                   </div>
                                   <div className="flex-1">
@@ -856,8 +961,26 @@ import { useEffect } from 'react';
                                     <Input
                                       type="number"
                                       min="1"
-                                      value={piece.cantidad}
-                                      onChange={(e) => updateContrastPiece(pieceTypeIndex, pieceIndex, 'cantidad', parseInt(e.target.value) || 1)}
+                                      value={piece.cantidad === 1 ? '' : piece.cantidad}
+                                      onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (value === '' || value === '0') {
+                                          updateContrastPiece(pieceTypeIndex, pieceIndex, 'cantidad', '');
+                                        } else {
+                                          const numValue = parseInt(value);
+                                          if (!isNaN(numValue) && numValue > 0) {
+                                            updateContrastPiece(pieceTypeIndex, pieceIndex, 'cantidad', numValue);
+                                          }
+                                        }
+                                      }}
+                                      onBlur={(e) => {
+                                        if (e.target.value === '' || e.target.value === '0') {
+                                          updateContrastPiece(pieceTypeIndex, pieceIndex, 'cantidad', 1);
+                                        }
+                                      }}
+                                      placeholder="1"
+                                      className="text-center"
+                                      uppercase={true}
                                     />
                                   </div>
                                   <div className="flex-1">
@@ -866,6 +989,7 @@ import { useEffect } from 'react';
                                       value={piece.folioOriginal || ''}
                                       onChange={(e) => updateContrastPiece(pieceTypeIndex, pieceIndex, 'folioOriginal', e.target.value)}
                                       placeholder="Opcional"
+                                      uppercase={true}
                                     />
                                   </div>
                                   {tipoPieza.pieces.length > 1 && (
@@ -955,6 +1079,7 @@ import { useEffect } from 'react';
                     {...register('observaciones')}
                     rows={3}
                     placeholder="Comentarios adicionales..."
+                    uppercase={true}
                   />
                 </div>
               </CardContent>
@@ -985,7 +1110,11 @@ import { useEffect } from 'react';
                 disabled={createRepositionMutation.isPending}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                {createRepositionMutation.isPending ? 'Creando...' : 'Crear Solicitud'}              </Button>
+                {createRepositionMutation.isPending 
+                  ? (repositionId ? 'Guardando...' : 'Creando...') 
+                  : (repositionId ? 'Guardar y Reenviar' : 'Crear Solicitud')
+                }
+              </Button>
             </div>
           </form>
         </div>
