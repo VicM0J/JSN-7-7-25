@@ -154,8 +154,9 @@ export function RepositionList({ userArea }: { userArea: string }) {
       return data;
     },
     enabled: !!user, // Only run query when user is authenticated
-    refetchInterval: showForm || editingReposition || selectedReposition || trackedReposition ? false : 30000, // 30 seconds, disabled when forms are open
-    refetchOnMount: true,
+    refetchInterval: showForm || editingReposition || selectedReposition || trackedReposition ? false : 3000, // Reducido a 3 segundos para actualizaciones más rápidas
+    refetchOnMount: 'always',
+    staleTime: 1000, // 1 segundo para datos más frescos
     refetchOnWindowFocus: showForm || editingReposition || selectedReposition || trackedReposition ? false : true // Disable when forms are open
   });
 
@@ -199,8 +200,10 @@ export function RepositionList({ userArea }: { userArea: string }) {
       }
       return response.json();
     },
-    refetchInterval: showForm || editingReposition || selectedReposition || trackedReposition ? false : 30000, // 30 seconds, disabled when forms are open
+    refetchInterval: showForm || editingReposition || selectedReposition || trackedReposition ? false : 2000, // Reducido a 2 segundos para mostrar transferencias más rápido
     refetchOnWindowFocus: showForm || editingReposition || selectedReposition || trackedReposition ? false : true,
+    staleTime: 500, // Datos frescos cada 500ms
+    refetchOnMount: 'always',
     enabled: !!user
   });
 
@@ -227,7 +230,15 @@ export function RepositionList({ userArea }: { userArea: string }) {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidar múltiples cachés para asegurar sincronización
       queryClient.invalidateQueries({ queryKey: ['repositions'] });
+      queryClient.invalidateQueries({ queryKey: ['transferencias-pendientes-reposicion'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      
+      // Refetch inmediato para mostrar cambios rápidamente
+      queryClient.refetchQueries({ queryKey: ['repositions'] });
+      queryClient.refetchQueries({ queryKey: ['transferencias-pendientes-reposicion'] });
+      
       Swal.fire({
         title: '¡Éxito!',
         text: 'Transferencia creada correctamente',
@@ -386,8 +397,16 @@ export function RepositionList({ userArea }: { userArea: string }) {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidar y refetch múltiples cachés inmediatamente
       queryClient.invalidateQueries({ queryKey: ['repositions'] });
       queryClient.invalidateQueries({ queryKey: ['transferencias-pendientes-reposicion'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      
+      // Refetch inmediato para sincronización rápida
+      queryClient.refetchQueries({ queryKey: ['repositions'] });
+      queryClient.refetchQueries({ queryKey: ['transferencias-pendientes-reposicion'] });
+      queryClient.refetchQueries({ queryKey: ['/api/notifications'] });
+      
       Swal.fire({
         title: '¡Éxito!',
         text: 'Transferencia procesada correctamente',
@@ -784,8 +803,7 @@ export function RepositionList({ userArea }: { userArea: string }) {
         text: 'Esta acción moverá la reposición a tu área',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#10B981',
-        confirmButtonText: 'Aceptar',        cancelButtonText: 'Cancelar'
+        confirmButtonColor: '#10B981',        confirmButtonText: 'Aceptar',        cancelButtonText: 'Cancelar'
       });
 
       if (result.isConfirmed) {
@@ -1142,6 +1160,15 @@ export function RepositionList({ userArea }: { userArea: string }) {
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-blue-600 hover:bg-blue-50"
+                      onClick={() => setSelectedReposition(transfer.repositionId)}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Ver Detalles
+                    </Button>
                     <Button
                       size="sm"
                       className="bg-green-600 hover:bg-green-700"
