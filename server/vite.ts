@@ -41,6 +41,7 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+  // SPA fallback: serve index.html for all requests
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
@@ -64,6 +65,8 @@ export async function setupVite(app: Express, server: Server) {
       next(e);
     }
   });
+
+  return vite;
 }
 
 export function serveStatic(app: Express) {
@@ -77,6 +80,7 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
+  // SPA fallback: serve index.html for all requests
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
