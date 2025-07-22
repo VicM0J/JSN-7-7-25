@@ -123,12 +123,12 @@ if (!global.serverStarted) {
     });
 
     // Iniciar servidor
-    const port = 2000;
+    const port = process.env.PORT || 5000;
     server.listen({
       port,
       host: "0.0.0.0",
     }, () => {
-      log(`Servidor activo en http://localhost:${port}`);
+      log(`Servidor activo en http://0.0.0.0:${port}`);
     });
   })();
 } else {

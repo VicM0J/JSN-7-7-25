@@ -142,7 +142,7 @@ export interface IStorage {
 
   createRepositionTransfer(transfer: InsertRepositionTransfer, createdBy: number): Promise<RepositionTransfer>;
   processRepositionTransfer(transferId: number, action: 'accepted' | 'rejected', userId: number, reason?: string): Promise<RepositionTransfer>;
-  getRepositionHistory(repositionId: number): Promise<RepositionHistory[]>;
+  getRepositionHistory(repositionId: number): Promise<any>;
   getRepositionTracking(repositionId: number): Promise<any>;
 
   deleteReposition(repositionId: number, userId: number, reason?: string): Promise<void>;
@@ -974,10 +974,30 @@ export class DatabaseStorage implements IStorage {
     return transfer;
   }
 
-  async getRepositionHistory(repositionId: number): Promise<RepositionHistory[]> {
-    return await db.select().from(repositionHistory)
-      .where(eq(repositionHistory.repositionId, repositionId))
-      .orderBy(asc(repositionHistory.createdAt));
+  async getRepositionHistory(repositionId: number): Promise<any[]> {
+    const historyEntries = await db.select({
+      id: repositionHistory.id,
+      action: repositionHistory.action,
+      description: repositionHistory.description,
+      fromArea: repositionHistory.fromArea,
+      toArea: repositionHistory.toArea,
+      createdAt: repositionHistory.createdAt,
+      userName: users.name,
+    })
+    .from(repositionHistory)
+    .leftJoin(users, eq(repositionHistory.userId, users.id))
+    .where(eq(repositionHistory.repositionId, repositionId))
+    .orderBy(desc(repositionHistory.createdAt));
+
+    return historyEntries.map(entry => ({
+      id: entry.id,
+      action: entry.action,
+      description: entry.description,
+      fromArea: entry.fromArea || undefined,
+      toArea: entry.toArea || undefined,
+      createdAt: entry.createdAt.toISOString(),
+      userName: entry.userName || 'Usuario desconocido'
+    }));
   }
 
   async createAdminPassword(password: string, createdBy: number): Promise<AdminPassword> {
@@ -1356,7 +1376,7 @@ async getRepositionTracking(repositionId: number): Promise<any> {
         if (timeMatch) {
           const minutes = parseInt(timeMatch[1]);
           const area = timeMatch[2].toLowerCase();
-          
+
           if (!isNaN(minutes) && minutes > 0) {
             areaTimesCalculated[area] = (areaTimesCalculated[area] || 0) + minutes;
           }
@@ -1702,7 +1722,7 @@ async startRepositionTimer(repositionId: number, userId: number, area: string): 
     }
 
     if (reposition.status !== 'aprobado') {
-      throw new Error('Solo se puede iniciar el cronómetro en reposiciones aprobadas');
+      throw newError('Solo se puede iniciar el cronómetro en reposiciones aprobadas');
     }
 
     // Verificar si el usuario es el creador original de la reposición
@@ -1853,22 +1873,38 @@ async startRepositionTimer(repositionId: number, userId: number, area: string): 
       throw new Error('Reposición no encontrada');
     }
 
-    // Verificar si el usuario es el creador original de la reposición
-    if (reposition.createdBy === userId) {
-      throw new Error('El creador de la reposición no debe registrar tiempo');
-    }
-
     // Validar que las fechas y horas sean válidas
     if (!startTime || !endTime || !startDate || !endDate) {
       throw new Error('Todos los campos de fecha y hora son requeridos');
     }
 
-    // Convertir strings a Date objects
-    const startDateTime = new Date(`${startDate}T${startTime}`);
-    const endDateTime = new Date(`${endDate}T${endTime}`);
+    // Convertir strings a Date objects usando las fechas correctas
+    // Para manejar zonas horarias, vamos a crear las fechas como objetos Date locales
+    const startDateTime = new Date(`${startDate}T${startTime}:00`);
+    const endDateTime = new Date(`${endDate}T${endTime}:00`);
+
+    console.log('Start DateTime:', startDateTime);
+    console.log('End DateTime:', endDateTime);
+    console.log('Start Date String:', `${startDate}T${startTime}:00`);
+    console.log('End Date String:', `${endDate}T${endTime}:00`);
 
     if (startDateTime >= endDateTime) {
       throw new Error('La hora de inicio debe ser anterior a la hora de fin');
+    }
+
+    // Calcular duración en minutos
+    const durationMs = endDateTime.getTime() - startDateTime.getTime();
+    const durationMinutes = Math.round(durationMs / (1000 * 60));
+
+    console.log('Duration in minutes:', durationMinutes);
+
+    // Validar que la duración sea positiva y razonable (máximo 24 horas)
+    if (durationMinutes <= 0) {
+      throw new Error('La duración debe ser positiva');
+    }
+
+    if (durationMinutes > 24 * 60) {
+      throw new Error('La duración no puede exceder 24 horas');
     }
 
     // Verificar si ya existe un timer para esta reposición y área
@@ -1876,48 +1912,67 @@ async startRepositionTimer(repositionId: number, userId: number, area: string): 
       .from(repositionTimers)
       .where(and(
         eq(repositionTimers.repositionId, repositionId),
-        eq(repositionTimers.area, area as Area)
+        eq(repositionTimers.area, area as any)
       ))
       .limit(1);
 
-    let timer;
     if (existingTimer.length > 0) {
       // Actualizar timer existente
-      timer = await db.update(repositionTimers)
+      await db.update(repositionTimers)
         .set({
+          manualStartTime: startTime,
+          manualEndTime: endTime,
           startTime: startDateTime,
           endTime: endDateTime,
-          userId: userId
+          elapsedMinutes: durationMinutes,
+          isRunning: false,
+          userId: userId,
+          manualDate: startDate,
+          manualEndDate: endDate
         })
-        .where(eq(repositionTimers.id, existingTimer[0].id))
-        .returning();
+        .where(eq(repositionTimers.id, existingTimer[0].id));
+
+      console.log('Updated existing timer with manual time');
     } else {
       // Crear nuevo timer
-      timer = await db.insert(repositionTimers)
-        .values({
-          repositionId,
-          area: area as Area,
-          userId,
-          startTime: startDateTime,
-          endTime: endDateTime
-        })
-        .returning();
-    }
+      await db.insert(repositionTimers).values({
+        repositionId,
+        area: area as any,
+        userId,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        elapsedMinutes: durationMinutes,
+        isRunning: false,
+        manualStartTime: startTime,
+        manualEndTime: endTime,
+        manualDate: startDate,
+        manualEndDate: endDate
+      });
 
-    // Calcular duración en minutos
-    const durationMs = endDateTime.getTime() - startDateTime.getTime();
-    const durationMinutes = Math.round(durationMs / (1000 * 60));
+      console.log('Created new timer with manual time');
+    }
 
     // Agregar entrada al historial
     await this.addRepositionHistory(
       repositionId,
-      'manual_time_set',
-      `Tiempo manual registrado: ${durationMinutes} minutos en área ${area}`,
+      'timer_manual',
+      `Tiempo manual: ${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`,
       userId
     );
 
-    console.log('Manual time set successfully:', timer[0]);
-    return timer[0];
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    const elapsedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+
+    return {
+      repositionId,
+      area,
+      userId,
+      startTime: startDateTime,
+      endTime: endDateTime,
+      elapsedTime,
+      duration: durationMinutes
+    };
   }
 
   async getRepositionTimer(repositionId: number, area: Area): Promise<SharedRepositionTimer | null> {
@@ -2660,7 +2715,7 @@ async createReposition(data: InsertReposition & { folio: string, productos?: any
         const areaData = areaMap.get(area)!;
         areaData.count += item.count;
 
-        if (item.type === 'repocision') {
+        if (item.type === 'repocision'){
           areaData.reposiciones += item.count;
         } else if (item.type === 'reproceso') {
           areaData.reprocesos += item.count;
